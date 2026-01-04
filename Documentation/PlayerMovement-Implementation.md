@@ -595,6 +595,69 @@ DebugLogger.Log(
 - `Airborne Color`: 공중에 있을 때 색상 (기본값: 빨간색)
 - `Model Child Name`: 스프라이트가 있는 자식 오브젝트 이름 (기본값: "Model")
 
+## One-way Platform 시스템 구현
+
+One-way Platform 시스템은 `OneWayPlatform` 컴포넌트에 구현되어 있습니다.
+
+### 구현된 기능
+
+- **PlatformEffector2D 기반**: Unity의 PlatformEffector2D를 사용하여 One-way platform 구현
+- **위에서 아래로만 통과**: 플레이어가 위에서 아래로 내려올 때만 통과 가능
+- **아래 점프 연동**: 아래 점프 시 One-way platform 통과 가능
+- **자동 설정**: 레이어, 콜라이더, PlatformEffector2D 자동 설정
+
+### 사용 방법
+
+```csharp
+// One-way platform 오브젝트에 OneWayPlatform 컴포넌트 추가
+// Inspector에서 설정 조정
+// 또는 우클릭 → "Setup One-Way Platform" 메뉴로 수동 설정
+```
+
+### 설정 가능한 필드
+
+- `Collider Size`: 박스 콜라이더 2D(`BoxCollider2D`) 크기 (기본값: 10, 0.5)
+- `Auto Setup Collider`: 자동 콜라이더 설정 여부
+- `Player Layer Mask`: 플레이어 레이어 마스크
+
+## 아래 점프 시스템 구현
+
+아래 점프 시스템은 `PlayerPhysics` 클래스에 구현되어 있습니다.
+
+### 구현된 기능
+
+- **아래 방향 입력 감지**: S키 또는 아래 화살표 키 입력 감지
+- **아래 점프 힘**: 아래 방향으로 빠르게 낙하하는 힘 적용
+- **One-way platform 통과**: 아래 점프 시 One-way platform 통과 가능
+- **충돌 무시 시간**: One-way platform 충돌 무시 시간 설정 가능
+
+### 작동 원리
+
+1. **아래 점프 요청**: `PlayerController`에서 아래 방향 키 입력 시 `RequestDownJump()` 호출
+2. **아래로 힘 적용**: 아래 방향으로 점프 힘을 적용하여 빠르게 낙하
+3. **One-way platform 통과**: 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
+
+### 사용 방법
+
+```csharp
+// PlayerController에서 아래 점프 입력 처리
+if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
+{
+    _physics.RequestDownJump();
+}
+```
+
+### 설정 가능한 필드
+
+- `Down Jump Force`: 아래 점프 힘 (기본값: -20.0, 음수 값)
+- `Down Jump Platform Ignore Time`: One-way platform 충돌 무시 시간 (기본값: 0.3초)
+
+### 아래 점프 시스템 동작 방식
+
+- **아래 점프 힘**: `_downJumpForce` 값이 음수이므로 아래로 이동
+- **One-way platform 통과**: 아래 점프 시 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
+- **충돌 무시 시간**: `_downJumpPlatformIgnoreTime` 동안 One-way platform 충돌 무시
+
 ## 환경 설정
 
 ### GroundSetup
@@ -669,3 +732,17 @@ DebugLogger.Log(
 
 - [ ] Model 스프라이트가 이동 방향에 따라 반전되는가?
 - [ ] PlayerGroundedDebugger가 정상적으로 색상을 변경하는가? (에디터에서만)
+
+### One-way Platform 시스템
+
+- [ ] OneWayPlatform 컴포넌트가 정상적으로 설정되는가?
+- [ ] 위에서 아래로 내려올 때 플랫폼을 통과하는가?
+- [ ] 아래에서 위로 올라갈 때 플랫폼에 막히는가?
+- [ ] 아래 점프 시 One-way platform을 통과하는가?
+
+### 아래 점프 시스템
+
+- [ ] 아래 방향 키(S키 또는 아래 화살표) 입력 시 아래 점프가 실행되는가?
+- [ ] 아래 점프 시 아래로 빠르게 낙하하는가?
+- [ ] 아래 점프 시 One-way platform을 통과하는가?
+- [ ] 아래 점프 후 충돌 무시 시간이 정상적으로 작동하는가?

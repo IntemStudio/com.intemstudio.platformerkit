@@ -274,6 +274,63 @@ public class PlayerPhysics : MonoBehaviour
 - **기능 해금 후**: 공중 대시 활성화
 - **런타임 변경**: `SetAirDashEnabled(bool enabled)` 메서드를 통해 공중 대시 동적 활성화/비활성화 가능
 
+## One-way Platform 시스템 설계
+
+One-way Platform은 플레이어가 위에서 아래로 내려올 때만 통과할 수 있고, 아래에서 위로 올라갈 때는 막히는 플랫폼입니다.
+
+### 설계 의도
+
+- **플랫포밍 다양성**: 플레이어가 위에서 아래로 내려와야 하는 퍼즐과 플랫포밍 요소 추가
+- **직관적인 동작**: 위에서 아래로는 자연스럽게 통과하고, 아래에서 위로는 막히는 직관적인 동작
+- **아래 점프와 연동**: 아래 점프 기능과 함께 사용하여 플랫폼을 통과할 수 있음
+
+### 작동 원리
+
+1. **PlatformEffector2D 사용**: Unity의 PlatformEffector2D 컴포넌트를 사용하여 One-way platform 구현
+2. **위에서 아래로만 통과**: 플레이어가 위에서 아래로 내려올 때만 통과 가능
+3. **아래 점프 연동**: 아래 점프 시 One-way platform과의 충돌을 일시적으로 비활성화하여 통과 가능
+
+### 구현된 기능
+
+- **OneWayPlatform 컴포넌트**: One-way platform 자동 설정
+- **아래 점프 통과**: 아래 점프 시 One-way platform 통과 가능
+- **자동 설정**: 레이어, 콜라이더, PlatformEffector2D 자동 설정
+
+## 아래 점프 시스템 설계
+
+아래 점프는 플레이어가 아래 방향 키를 눌렀을 때 아래로 빠르게 낙하하거나 One-way platform을 통과할 수 있게 하는 기능입니다.
+
+### 설계 의도
+
+- **One-way platform 통과**: 아래 점프로 One-way platform을 통과할 수 있음
+- **빠른 낙하**: 아래 방향 키를 눌러 빠르게 낙하 가능
+- **직관적인 조작**: 아래 방향 키 입력으로 직관적으로 사용 가능
+
+### 작동 원리
+
+1. **아래 점프 요청**: `PlayerController`에서 아래 방향 키 입력 시 아래 점프 요청(`RequestDownJump`) 호출
+2. **아래로 힘 적용**: 아래 방향으로 점프 힘을 적용하여 빠르게 낙하
+3. **One-way platform 통과**: 아래 점프 시 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
+
+### 구현된 기능
+
+- **아래 방향 입력 감지**: S키 또는 아래 화살표 키 입력 감지
+- **아래 점프 힘**: 아래 방향으로 빠르게 낙하하는 힘 적용
+- **One-way platform 통과**: 아래 점프 시 One-way platform 통과 가능
+- **충돌 무시 시간**: One-way platform 충돌 무시 시간 설정 가능
+
+### PlayerPhysics API 확장
+
+아래 점프 시스템을 위해 `PlayerPhysics` 클래스에 다음 API가 추가됩니다:
+
+```csharp
+public class PlayerPhysics : MonoBehaviour
+{
+    // 아래 점프 요청(`RequestDownJump`) (One-way platform 통과 및 아래로 점프)
+    public void RequestDownJump();
+}
+```
+
 ## 향후 확장 가능한 기능
 
 ### 벽 점프

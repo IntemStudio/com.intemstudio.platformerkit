@@ -54,6 +54,12 @@ public class PlayerController : MonoBehaviour
             _physics.ReleaseJump();
         }
 
+        // 아래 점프 입력 감지 (S키 또는 아래 화살표)
+        if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
+        {
+            _physics.RequestDownJump();
+        }
+
         // 대시 입력 감지
         if (Input.GetKeyDown(KeyCode.LeftShift))
         {

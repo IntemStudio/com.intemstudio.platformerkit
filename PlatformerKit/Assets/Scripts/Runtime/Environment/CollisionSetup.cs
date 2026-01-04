@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class GroundSetup : MonoBehaviour
+public class CollisionSetup : MonoBehaviour
 {
     [SerializeField] private Vector2 _colliderSize = new Vector2(10f, 0.5f);
     [SerializeField] private bool _autoSetupCollider = true;

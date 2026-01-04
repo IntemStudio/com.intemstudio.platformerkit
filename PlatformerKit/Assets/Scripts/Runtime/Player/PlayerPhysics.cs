@@ -21,6 +21,10 @@ public class PlayerPhysics : MonoBehaviour
     [SerializeField] private float _dashCooldown = 0.5f; // 대시 쿨타임
     [SerializeField] private bool _airDashEnabled = false; // 공중 대시 활성화 여부
 
+    // 아래 점프 관련 파라미터
+    [SerializeField] private float _downJumpForce = -20f; // 아래 점프 힘 (음수 값)
+    [SerializeField] private float _downJumpPlatformIgnoreTime = 0.3f; // One-way platform 충돌 무시 시간
+
     private Rigidbody2D _rb;
     private BoxCollider2D _boxCollider;
 
@@ -36,6 +40,10 @@ public class PlayerPhysics : MonoBehaviour
     private float _dashDurationCounter;
     private Vector2 _dashDirection;
     private bool _wasGroundedBeforeDash; // 대시 시작 시 지상 상태 저장
+
+    // 아래 점프 관련 필드
+    private bool _isIgnoringPlatforms; // One-way platform 충돌 무시 중
+    private float _platformIgnoreTimer; // One-way platform 충돌 무시 타이머
 
     public bool IsGrounded => _isGrounded;
     public bool IsJumping => _isJumping;
@@ -344,6 +352,17 @@ public class PlayerPhysics : MonoBehaviour
     }
 
     /// <summary>
+    /// 아래 점프 요청 (One-way platform 통과 및 아래로 점프)
+    /// </summary>
+    public void RequestDownJump()
+    {
+        if (_rb == null) return;
+
+        // 아래 점프 실행
+        ExecuteDownJump();
+    }
+
+    /// <summary>
     /// 점프 실행 (내부 메서드)
     /// </summary>
     private void ExecuteJump()
@@ -357,6 +376,56 @@ public class PlayerPhysics : MonoBehaviour
         _coyoteTimeCounter = 0f;
         _jumpBufferCounter = 0f;
         _isJumping = true;
+    }
+
+    /// <summary>
+    /// 아래 점프 실행 (내부 메서드)
+    /// </summary>
+    private void ExecuteDownJump()
+    {
+        if (_rb == null) return;
+
+        // 아래로 점프 힘 적용 (음수 값이므로 아래로 이동)
+        float currentVelocityY = _rb.linearVelocity.y;
+        float newVelocityY = Mathf.Min(currentVelocityY, _downJumpForce);
+        _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, newVelocityY);
+
+        // One-way platform 충돌 무시 시작
+        _isIgnoringPlatforms = true;
+        _platformIgnoreTimer = _downJumpPlatformIgnoreTime;
+
+        // 플레이어 아래에 있는 One-way platform 찾아서 일시적으로 충돌 비활성화
+        IgnoreOneWayPlatformsBelow();
+    }
+
+    /// <summary>
+    /// 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 무시
+    /// </summary>
+    private void IgnoreOneWayPlatformsBelow()
+    {
+        if (_boxCollider == null) return;
+
+        // 플레이어 콜라이더 하단에서 아래로 Raycast
+        Vector2 boxSize = _boxCollider.size;
+        Vector2 boxCenter = _boxCollider.bounds.center;
+        Vector2 rayOrigin = new Vector2(boxCenter.x, boxCenter.y - boxSize.y * 0.5f - 0.05f);
+        float checkDistance = 2f; // 충분한 거리 체크
+
+        // 모든 One-way platform 찾기
+        RaycastHit2D[] hits = Physics2D.RaycastAll(rayOrigin, Vector2.down, checkDistance, _groundLayerMask);
+
+        foreach (RaycastHit2D hit in hits)
+        {
+            if (hit.collider == null || hit.collider == _boxCollider) continue;
+
+            // OneWayPlatform 컴포넌트가 있는지 확인
+            OneWayPlatform oneWayPlatform = hit.collider.GetComponent<OneWayPlatform>();
+            if (oneWayPlatform != null)
+            {
+                // One-way platform의 충돌을 일시적으로 비활성화
+                oneWayPlatform.DisableCollisionTemporarily(_downJumpPlatformIgnoreTime);
+            }
+        }
     }
 
     /// <summary>
@@ -424,6 +493,16 @@ public class PlayerPhysics : MonoBehaviour
         if (_dashCooldownCounter > 0f)
         {
             _dashCooldownCounter -= Time.fixedDeltaTime;
+        }
+
+        // One-way platform 충돌 무시 타이머 감소
+        if (_isIgnoringPlatforms)
+        {
+            _platformIgnoreTimer -= Time.fixedDeltaTime;
+            if (_platformIgnoreTimer <= 0f)
+            {
+                _isIgnoringPlatforms = false;
+            }
         }
 
         // Jump Buffer 감소
