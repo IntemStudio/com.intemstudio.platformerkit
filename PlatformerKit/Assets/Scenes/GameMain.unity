@@ -362,9 +362,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _moveSpeed: 5
-  _jumpForce: 10
-  _jumpBufferTime: 0.2
-  _jumpCutMultiplier: 0.5
 --- !u!50 &768114349
 Rigidbody2D:
   serializedVersion: 5
@@ -380,7 +377,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDamping: 0
   m_AngularDamping: 0.05
-  m_GravityScale: 2
+  m_GravityScale: 3
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -474,6 +471,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   _coyoteTime: 0.2
+  _jumpForce: 15
+  _jumpBufferTime: 0.2
+  _jumpCutMultiplier: 0.5
+  _canDoubleJump: 1
 --- !u!114 &768114353
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -486,9 +487,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f32e4847c15d4c64dafdfd19599216f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _groundedColor: {r: 0, g: 1, b: 0, a: 1}
-  _airborneColor: {r: 1, g: 0, b: 0, a: 1}
-  _modelChildName: Model
+  _groundedColor: {r: 0.20392157, g: 0.45490196, b: 0.2, a: 1}
+  _airborneColor: {r: 0.69803923, g: 0.13333334, b: 0.13333334, a: 1}
+  _modelChildName: GroundDebug
 --- !u!1 &876353094
 GameObject:
   m_ObjectHideFlags: 0

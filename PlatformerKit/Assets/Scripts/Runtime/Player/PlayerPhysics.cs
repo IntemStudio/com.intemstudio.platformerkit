@@ -13,6 +13,7 @@ public class PlayerPhysics : MonoBehaviour
     [SerializeField] private float _jumpForce = 15f;
     [SerializeField] private float _jumpBufferTime = 0.2f;
     [SerializeField] private float _jumpCutMultiplier = 0.5f;
+    [SerializeField] private int _extraJumps = 0; // 공중 점프 횟수 (기본값: 0, 기능 해금 시 증가)
 
     private Rigidbody2D _rb;
     private BoxCollider2D _boxCollider;
@@ -21,9 +22,16 @@ public class PlayerPhysics : MonoBehaviour
     private float _coyoteTimeCounter;
     private float _jumpBufferCounter;
     private bool _isJumping;
+    private int _jumpCounter; // 현재 사용 가능한 점프 횟수
 
     public bool IsGrounded => _isGrounded;
     public bool IsJumping => _isJumping;
+    
+    // 남은 점프 횟수 (읽기 전용)
+    public int RemainingJumps => _jumpCounter;
+    
+    // 현재 공중 점프 횟수 (읽기 전용)
+    public int ExtraJumps => _extraJumps;
 
     private void Awake()
     {
@@ -33,6 +41,9 @@ public class PlayerPhysics : MonoBehaviour
         {
             SetupCollider();
         }
+
+        // 점프 카운터 초기화 (기본 점프 1 + 공중 점프 횟수)
+        _jumpCounter = 1 + _extraJumps;
     }
 
     private void SetupRigidbody2D()
@@ -203,6 +214,8 @@ public class PlayerPhysics : MonoBehaviour
             _isGrounded = true;
             _coyoteTimeCounter = _coyoteTime;
             _isJumping = false; // 바닥에 닿으면 점프 상태 초기화
+            // 바닥 착지 시 점프 카운터 리셋 (기본 점프 1 + 공중 점프 횟수)
+            _jumpCounter = 1 + _extraJumps;
 
             // #region agent log
             DebugLogger.Log(
@@ -275,6 +288,20 @@ public class PlayerPhysics : MonoBehaviour
     }
 
     /// <summary>
+    /// 공중 점프 횟수 설정 (기능 해금 시스템과 연동)
+    /// </summary>
+    public void SetExtraJumps(int count)
+    {
+        _extraJumps = Mathf.Max(0, count); // 음수 방지
+        
+        // 바닥에 있을 때만 카운터 리셋 (공중에서는 유지)
+        if (_isGrounded)
+        {
+            _jumpCounter = 1 + _extraJumps;
+        }
+    }
+
+    /// <summary>
     /// 점프 실행 (내부 메서드)
     /// </summary>
     private void ExecuteJump()
@@ -301,10 +328,22 @@ public class PlayerPhysics : MonoBehaviour
             _jumpBufferCounter -= Time.fixedDeltaTime;
         }
 
-        // 점프 실행 조건 체크 (Jump Buffer + Coyote Time)
-        if (_jumpBufferCounter > 0f && _isGrounded)
+        // 점프 실행 조건 체크
+        if (_jumpBufferCounter > 0f && _jumpCounter > 0)
         {
-            ExecuteJump();
+            // 첫 번째 점프: 바닥에 있거나 Coyote Time 내
+            if (_isGrounded)
+            {
+                ExecuteJump();
+                // 첫 점프 후 남은 횟수는 공중 점프 횟수만
+                _jumpCounter = _extraJumps;
+            }
+            // 공중 점프: 공중에 있고 공중 점프 횟수가 0보다 클 때
+            else if (!_isGrounded && _extraJumps > 0 && _jumpCounter > 0)
+            {
+                ExecuteJump();
+                _jumpCounter--; // 점프 카운터 감소
+            }
         }
     }
 }

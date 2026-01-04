@@ -9,7 +9,7 @@ public class PlayerGroundedDebugger : MonoBehaviour
 {
     [SerializeField] private Color _groundedColor = Color.green;
     [SerializeField] private Color _airborneColor = Color.red;
-    [SerializeField] private string _modelChildName = "Model";
+    [SerializeField] private string _modelChildName = "GroundDebug";
 
     private PlayerPhysics _physics;
     private SpriteRenderer _spriteRenderer;
