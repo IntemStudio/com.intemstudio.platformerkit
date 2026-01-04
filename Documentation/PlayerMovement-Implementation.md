@@ -416,14 +416,32 @@ public class PlayerPhysics : MonoBehaviour
 
 ```csharp
 // PlayerController에서 점프 입력 처리
-if (Input.GetKeyDown(KeyCode.Space))
-{
-    _physics.RequestJump(); // Jump Buffer에 저장
-}
+private bool _isDownInputPressed;
 
-if (Input.GetKeyUp(KeyCode.Space))
+private void Update()
 {
-    _physics.ReleaseJump(); // 가변 점프 처리
+    // 아래 방향 키 입력 상태 추적
+    _isDownInputPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+
+    // 점프 입력 감지
+    if (Input.GetKeyDown(KeyCode.Space))
+    {
+        // 아래 방향 키가 눌려있으면 아래 점프, 아니면 일반 점프
+        if (_isDownInputPressed)
+        {
+            _physics.RequestDownJump(); // 지면에 닿아있을 때만 실행
+        }
+        else
+        {
+            _physics.RequestJump(); // Jump Buffer에 저장
+        }
+    }
+
+    // 점프 키 해제 (가변 점프, 아래 점프가 아닐 때만)
+    if (Input.GetKeyUp(KeyCode.Space) && !_isDownInputPressed)
+    {
+        _physics.ReleaseJump(); // 가변 점프 처리
+    }
 }
 ```
 
