@@ -21,6 +21,9 @@ public class PlayerPhysics : MonoBehaviour
     [SerializeField] private float _dashCooldown = 0.5f; // 대시 쿨타임
     [SerializeField] private bool _airDashEnabled = false; // 공중 대시 활성화 여부
 
+    // 대시 관련 상수
+    private const float DASH_VELOCITY_Y = 0f; // 대시 중 Y축 속도 고정값
+
     // 아래 점프 관련 파라미터
     [SerializeField] private float _downJumpForce = -20f; // 아래 점프 힘 (음수 값)
     [SerializeField] private float _downJumpPlatformIgnoreTime = 0.3f; // One-way platform 충돌 무시 시간
@@ -47,10 +50,10 @@ public class PlayerPhysics : MonoBehaviour
 
     public bool IsGrounded => _isGrounded;
     public bool IsJumping => _isJumping;
-    
+
     // 남은 점프 횟수 (읽기 전용)
     public int RemainingJumps => _jumpCounter;
-    
+
     // 현재 공중 점프 횟수 (읽기 전용)
     public int ExtraJumps => _extraJumps;
 
@@ -320,7 +323,7 @@ public class PlayerPhysics : MonoBehaviour
     public void SetExtraJumps(int count)
     {
         _extraJumps = Mathf.Max(0, count); // 음수 방지
-        
+
         // 바닥에 있을 때만 카운터 리셋 (공중에서는 유지)
         if (_isGrounded)
         {
@@ -357,6 +360,9 @@ public class PlayerPhysics : MonoBehaviour
     public void RequestDownJump()
     {
         if (_rb == null) return;
+
+        // 지면에 닿아있을 때만 아래 점프 가능
+        if (!_isGrounded) return;
 
         // 아래 점프 실행
         ExecuteDownJump();
@@ -452,7 +458,7 @@ public class PlayerPhysics : MonoBehaviour
         _dashDirection = direction;
 
         // 대시 속도 적용 (Y축 속도는 0으로 고정)
-        _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, 0f);
+        _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, DASH_VELOCITY_Y);
 
         // 대시 상태 플래그 설정
         _isDashing = true;
@@ -479,7 +485,7 @@ public class PlayerPhysics : MonoBehaviour
             {
                 float dashSpeed = _dashDistance / _dashDuration;
                 // Y축 속도를 0으로 고정
-                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, 0f);
+                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, DASH_VELOCITY_Y);
             }
 
             // 대시 지속 시간 종료 시 대시 종료

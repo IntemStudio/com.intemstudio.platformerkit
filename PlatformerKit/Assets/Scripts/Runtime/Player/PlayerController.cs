@@ -6,6 +6,7 @@ public class PlayerController : MonoBehaviour
 
     private PlayerPhysics _physics;
     private float _horizontalInput;
+    private bool _isDownInputPressed;
     private Transform _modelTransform;
 
     private void Awake()
@@ -42,22 +43,27 @@ public class PlayerController : MonoBehaviour
         // 입력은 Update에서 읽어서 저장
         _horizontalInput = Input.GetAxis("Horizontal");
 
-        // 점프 입력 감지 - Physics에 요청만 전달
+        // 아래 방향 키 입력 상태 추적
+        _isDownInputPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+
+        // 점프 입력 감지
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            _physics.RequestJump();
+            // 아래 방향 키가 눌려있으면 아래 점프, 아니면 일반 점프
+            if (_isDownInputPressed)
+            {
+                _physics.RequestDownJump();
+            }
+            else
+            {
+                _physics.RequestJump();
+            }
         }
 
-        // 점프 키를 떼면 가변 점프 처리
-        if (Input.GetKeyUp(KeyCode.Space))
+        // 점프 키를 떼면 가변 점프 처리 (아래 점프가 아닐 때만)
+        if (Input.GetKeyUp(KeyCode.Space) && !_isDownInputPressed)
         {
             _physics.ReleaseJump();
-        }
-
-        // 아래 점프 입력 감지 (S키 또는 아래 화살표)
-        if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
-        {
-            _physics.RequestDownJump();
         }
 
         // 대시 입력 감지

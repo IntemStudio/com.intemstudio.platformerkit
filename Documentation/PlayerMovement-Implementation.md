@@ -21,7 +21,10 @@
 **점프:**
 
 - **Input.GetKeyDown(KeyCode.Space)**: 점프 시작 (Jump Buffer에 저장)
-- **Input.GetKeyUp(KeyCode.Space)**: 점프 키 해제 (가변 점프 처리)
+  - 아래 방향 키가 눌려있지 않으면: 일반 점프 요청(`RequestJump`)
+  - 아래 방향 키가 눌려있으면: 아래 점프 요청(`RequestDownJump`)
+- **Input.GetKeyUp(KeyCode.Space)**: 점프 키 해제 (가변 점프 처리, 아래 점프가 아닐 때만)
+- **Input.GetKey(KeyCode.S) 또는 Input.GetKey(KeyCode.DownArrow)**: 아래 방향 키 입력 상태 추적
 
 **대시:**
 
@@ -66,6 +69,7 @@
 
 - 수평 이동 입력 처리
 - 점프 입력 처리 (점프 요청(`RequestJump`)/점프 키 해제(`ReleaseJump`))
+- 아래 점프 입력 처리 (아래 방향 키 + 점프 키 조합)
 - 대시 입력 처리 (대시 요청(`RequestDash`))
 - Model 자식 오브젝트 방향 반전 (스프라이트 좌우 전환)
 
@@ -76,6 +80,7 @@ public class PlayerController : MonoBehaviour
 
     private PlayerPhysics _physics;
     private float _horizontalInput;
+    private bool _isDownInputPressed;
     private Transform _modelTransform;
 
     private void Awake()
@@ -103,14 +108,25 @@ public class PlayerController : MonoBehaviour
     {
         _horizontalInput = Input.GetAxis("Horizontal");
 
+        // 아래 방향 키 입력 상태 추적
+        _isDownInputPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+
         // 점프 입력 감지
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            _physics.RequestJump();
+            // 아래 방향 키가 눌려있으면 아래 점프, 아니면 일반 점프
+            if (_isDownInputPressed)
+            {
+                _physics.RequestDownJump();
+            }
+            else
+            {
+                _physics.RequestJump();
+            }
         }
 
-        // 점프 키 해제 (가변 점프)
-        if (Input.GetKeyUp(KeyCode.Space))
+        // 점프 키 해제 (가변 점프, 아래 점프가 아닐 때만)
+        if (Input.GetKeyUp(KeyCode.Space) && !_isDownInputPressed)
         {
             _physics.ReleaseJump();
         }
@@ -367,6 +383,8 @@ public class PlayerPhysics : MonoBehaviour
 - `Dash Duration`: 대시 지속 시간 (기본값: 0.2초)
 - `Dash Cooldown`: 대시 쿨타임 (기본값: 0.5초)
 - `Air Dash Enabled`: 공중 대시 활성화 여부 (기본값: false, 기능 해금 시 true로 설정)
+- `Down Jump Force`: 아래 점프 힘 (기본값: -20.0, 음수 값)
+- `Down Jump Platform Ignore Time`: One-way platform 충돌 무시 시간 (기본값: 0.3초)
 
 **공개 API:**
 
@@ -379,6 +397,7 @@ public class PlayerPhysics : MonoBehaviour
 - `CanDash { get; }`: 대시 사용 가능 여부 조회
 - `SetAirDashEnabled(bool enabled)`: 공중 대시 활성화/비활성화 (기능 해금 시스템과 연동)
 - `IsAirDashEnabled { get; }`: 공중 대시 활성화 여부 조회
+- `RequestDownJump()`: 아래 점프 요청 (지면에 닿아있을 때만 실행, One-way platform 통과 및 아래로 점프)
 
 ## 점프 시스템 구현
 
@@ -627,24 +646,52 @@ One-way Platform 시스템은 `OneWayPlatform` 컴포넌트에 구현되어 있�
 
 ### 구현된 기능
 
-- **아래 방향 입력 감지**: S키 또는 아래 화살표 키 입력 감지
+- **아래 방향 + 점프 키 조합 입력 감지**: S키 또는 아래 화살표 키와 Space 키를 동시에 눌렀을 때 감지
+- **지면 한정**: 지면에 닿아있을 때만 아래 점프 사용 가능 (공중에서는 무시)
+- **일반 점프 예외 처리**: 아래 방향 키가 눌려있을 때 일반 점프 입력 무시
 - **아래 점프 힘**: 아래 방향으로 빠르게 낙하하는 힘 적용
 - **One-way platform 통과**: 아래 점프 시 One-way platform 통과 가능
 - **충돌 무시 시간**: One-way platform 충돌 무시 시간 설정 가능
 
 ### 작동 원리
 
-1. **아래 점프 요청**: `PlayerController`에서 아래 방향 키 입력 시 `RequestDownJump()` 호출
-2. **아래로 힘 적용**: 아래 방향으로 점프 힘을 적용하여 빠르게 낙하
-3. **One-way platform 통과**: 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
+1. **아래 방향 키 입력 상태 추적**: `PlayerController`에서 아래 방향 키(S키 또는 아래 화살표) 입력 상태를 지속적으로 추적
+2. **점프 입력 감지**: 점프 키(Space)를 눌렀을 때 아래 방향 키가 눌려있는지 확인
+3. **아래 점프 요청**: 아래 방향 키가 눌려있으면 `RequestDownJump()` 호출
+4. **지면 감지 확인**: `PlayerPhysics`에서 지면에 닿아있을 때만 아래 점프 실행 (공중에서는 무시)
+5. **아래로 힘 적용**: 아래 방향으로 점프 힘을 적용하여 빠르게 낙하
+6. **One-way platform 통과**: 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
 
 ### 사용 방법
 
 ```csharp
 // PlayerController에서 아래 점프 입력 처리
-if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
+private bool _isDownInputPressed;
+
+private void Update()
 {
-    _physics.RequestDownJump();
+    // 아래 방향 키 입력 상태 추적
+    _isDownInputPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+
+    // 점프 입력 감지
+    if (Input.GetKeyDown(KeyCode.Space))
+    {
+        // 아래 방향 키가 눌려있으면 아래 점프, 아니면 일반 점프
+        if (_isDownInputPressed)
+        {
+            _physics.RequestDownJump();
+        }
+        else
+        {
+            _physics.RequestJump();
+        }
+    }
+
+    // 점프 키 해제 (가변 점프, 아래 점프가 아닐 때만)
+    if (Input.GetKeyUp(KeyCode.Space) && !_isDownInputPressed)
+    {
+        _physics.ReleaseJump();
+    }
 }
 ```
 
@@ -655,6 +702,9 @@ if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
 
 ### 아래 점프 시스템 동작 방식
 
+- **입력 조합**: 아래 방향 키(S키 또는 아래 화살표)와 점프 키(Space)를 동시에 눌러야 함
+- **지면 한정**: 지면에 닿아있을 때만 사용 가능 (`_isGrounded`가 `true`일 때만 실행)
+- **일반 점프 예외 처리**: 아래 방향 키가 눌려있을 때 일반 점프 입력은 무시됨
 - **아래 점프 힘**: `_downJumpForce` 값이 음수이므로 아래로 이동
 - **One-way platform 통과**: 아래 점프 시 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
 - **충돌 무시 시간**: `_downJumpPlatformIgnoreTime` 동안 One-way platform 충돌 무시
@@ -743,7 +793,11 @@ if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
 
 ### 아래 점프 시스템
 
-- [ ] 아래 방향 키(S키 또는 아래 화살표) 입력 시 아래 점프가 실행되는가?
+- [ ] 아래 방향 키(S키 또는 아래 화살표)와 점프 키(Space)를 동시에 눌렀을 때 아래 점프가 실행되는가?
+- [ ] 아래 방향 키가 눌려있지 않을 때 점프 키를 누르면 일반 점프가 실행되는가?
+- [ ] 아래 방향 키가 눌려있을 때 점프 키를 누르면 일반 점프가 무시되고 아래 점프가 실행되는가?
+- [ ] 지면에 닿아있을 때만 아래 점프가 실행되는가? (공중에서는 무시되는가?)
 - [ ] 아래 점프 시 아래로 빠르게 낙하하는가?
 - [ ] 아래 점프 시 One-way platform을 통과하는가?
 - [ ] 아래 점프 후 충돌 무시 시간이 정상적으로 작동하는가?
+- [ ] 아래 점프 중에는 가변 점프가 작동하지 않는가?
