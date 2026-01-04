@@ -1,0 +1,35 @@
+# ===== Unity 기본 폴더 =====
+[Ll]ibrary/
+[Uu]serSettings/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild*/
+[Ll]ogs/
+[Mm]emoryCaptures/
+
+# ===== Unity 메타 & 크래시 =====
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+mono_crash.*.json
+
+# ===== Unity 빌드 =====
+Build/
+Build(Dev)/
+*.apk
+*.aab
+*.app
+*.unitypackage
+
+# ===== Packed Addressables =====
+[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+[Aa]ssets/[Ss]treamingAssets/aa.meta
+[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# ===== 프로젝트 전용 =====
+Assets/StreamingAssets/build_info
+Json/
+*.zip
+steam_appid.txt
+RewiredBackup/

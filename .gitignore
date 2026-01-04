@@ -1,0 +1,36 @@
+# ===== 로그 파일 =====
+logs/
+*.log
+
+# ===== OS =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.lnk
+
+# ===== IDE =====
+.vscode/
+.idea/
+.vs/
+.gradle/
+ExportedObj/
+.consulo/
+*.sln
+*.suo
+*.csproj
+*.unityproj
+*.user
+*.userprefs
+*.tmp
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.csproj.DotSettings.user
