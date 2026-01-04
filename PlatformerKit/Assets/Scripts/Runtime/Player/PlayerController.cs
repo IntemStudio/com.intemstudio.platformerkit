@@ -54,6 +54,34 @@ public class PlayerController : MonoBehaviour
             _physics.ReleaseJump();
         }
 
+        // 대시 입력 감지
+        if (Input.GetKeyDown(KeyCode.LeftShift))
+        {
+            Vector2 dashDirection = Vector2.zero;
+
+            // 대시 방향 계산
+            if (Mathf.Abs(_horizontalInput) > 0.01f)
+            {
+                // 입력이 있는 경우: 좌/우 키 입력 기준
+                dashDirection = _horizontalInput > 0 ? Vector2.right : Vector2.left;
+            }
+            else
+            {
+                // 입력이 없는 경우: _modelTransform의 스케일 x 값 기준
+                if (_modelTransform != null)
+                {
+                    dashDirection = _modelTransform.localScale.x > 0 ? Vector2.right : Vector2.left;
+                }
+                else
+                {
+                    // Model이 없으면 기본값: 오른쪽
+                    dashDirection = Vector2.right;
+                }
+            }
+
+            _physics.RequestDash(dashDirection);
+        }
+
         // Model 스프라이트 방향 반전
         UpdateModelDirection();
     }
@@ -73,11 +101,15 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // 즉각적인 반응: 입력에 바로 속도 적용 (가속/감속 없음)
-        float targetVelocityX = _horizontalInput * _moveSpeed;
+        // 대시 중일 때는 일반 이동 입력 무시
+        if (!_physics.IsDashing)
+        {
+            // 즉각적인 반응: 입력에 바로 속도 적용 (가속/감속 없음)
+            float targetVelocityX = _horizontalInput * _moveSpeed;
 
-        // PlayerPhysics를 통해 수평 속도 적용 (Y축 속도는 자동으로 유지됨)
-        _physics.ApplyHorizontalVelocity(targetVelocityX);
+            // PlayerPhysics를 통해 수평 속도 적용 (Y축 속도는 자동으로 유지됨)
+            _physics.ApplyHorizontalVelocity(targetVelocityX);
+        }
     }
 }
 

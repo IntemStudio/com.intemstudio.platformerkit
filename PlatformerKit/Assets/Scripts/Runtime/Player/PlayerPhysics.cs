@@ -15,6 +15,12 @@ public class PlayerPhysics : MonoBehaviour
     [SerializeField] private float _jumpCutMultiplier = 0.5f;
     [SerializeField] private int _extraJumps = 0; // 공중 점프 횟수 (기본값: 0, 기능 해금 시 증가)
 
+    // 대시 관련 파라미터
+    [SerializeField] private float _dashDistance = 2f; // 대시 거리
+    [SerializeField] private float _dashDuration = 0.2f; // 대시 지속 시간
+    [SerializeField] private float _dashCooldown = 0.5f; // 대시 쿨타임
+    [SerializeField] private bool _airDashEnabled = false; // 공중 대시 활성화 여부
+
     private Rigidbody2D _rb;
     private BoxCollider2D _boxCollider;
 
@@ -24,6 +30,13 @@ public class PlayerPhysics : MonoBehaviour
     private bool _isJumping;
     private int _jumpCounter; // 현재 사용 가능한 점프 횟수
 
+    // 대시 관련 필드
+    private bool _isDashing;
+    private float _dashCooldownCounter;
+    private float _dashDurationCounter;
+    private Vector2 _dashDirection;
+    private bool _wasGroundedBeforeDash; // 대시 시작 시 지상 상태 저장
+
     public bool IsGrounded => _isGrounded;
     public bool IsJumping => _isJumping;
     
@@ -32,6 +45,12 @@ public class PlayerPhysics : MonoBehaviour
     
     // 현재 공중 점프 횟수 (읽기 전용)
     public int ExtraJumps => _extraJumps;
+
+    // 대시 관련 프로퍼티
+    public bool IsDashing => _isDashing;
+    public float DashCooldownRemaining => _dashCooldownCounter;
+    public bool CanDash => _dashCooldownCounter <= 0f && (!_isDashing);
+    public bool IsAirDashEnabled => _airDashEnabled;
 
     private void Awake()
     {
@@ -302,6 +321,29 @@ public class PlayerPhysics : MonoBehaviour
     }
 
     /// <summary>
+    /// 대시 요청 (쿨타임 및 조건 확인 후 실행)
+    /// </summary>
+    public void RequestDash(Vector2 direction)
+    {
+        // 쿨타임 확인
+        if (!CanDash) return;
+
+        // 지상 대시인 경우 바닥 감지 확인
+        if (!_airDashEnabled && !_isGrounded) return;
+
+        // 대시 실행
+        ExecuteDash(direction);
+    }
+
+    /// <summary>
+    /// 공중 대시 활성화 여부 설정 (기능 해금 시스템과 연동)
+    /// </summary>
+    public void SetAirDashEnabled(bool enabled)
+    {
+        _airDashEnabled = enabled;
+    }
+
+    /// <summary>
     /// 점프 실행 (내부 메서드)
     /// </summary>
     private void ExecuteJump()
@@ -317,10 +359,72 @@ public class PlayerPhysics : MonoBehaviour
         _isJumping = true;
     }
 
+    /// <summary>
+    /// 대시 실행 (내부 메서드)
+    /// </summary>
+    private void ExecuteDash(Vector2 direction)
+    {
+        if (_rb == null) return;
+
+        // 대시 방향 정규화
+        if (direction.magnitude < 0.01f)
+        {
+            direction = Vector2.right; // 기본값: 오른쪽
+        }
+        else
+        {
+            direction.Normalize();
+        }
+
+        // 대시 속도 계산 (거리 / 시간)
+        float dashSpeed = _dashDistance / _dashDuration;
+
+        // 대시 방향 저장
+        _dashDirection = direction;
+
+        // 대시 속도 적용 (Y축 속도는 유지)
+        _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, _rb.linearVelocity.y);
+
+        // 대시 상태 플래그 설정
+        _isDashing = true;
+        _dashDurationCounter = _dashDuration;
+        _wasGroundedBeforeDash = _isGrounded;
+
+        // 쿨타임 타이머 초기화
+        _dashCooldownCounter = _dashCooldown;
+    }
+
     private void FixedUpdate()
     {
         // 매 프레임 바닥 감지
         CheckGrounded();
+
+        // 대시 처리
+        if (_isDashing)
+        {
+            // 대시 지속 시간 감소
+            _dashDurationCounter -= Time.fixedDeltaTime;
+
+            // 대시 속도 유지 (일반 이동 입력 무시)
+            if (_rb != null)
+            {
+                float dashSpeed = _dashDistance / _dashDuration;
+                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, _rb.linearVelocity.y);
+            }
+
+            // 대시 지속 시간 종료 시 대시 종료
+            if (_dashDurationCounter <= 0f)
+            {
+                _isDashing = false;
+                _dashDirection = Vector2.zero;
+            }
+        }
+
+        // 대시 쿨타임 감소
+        if (_dashCooldownCounter > 0f)
+        {
+            _dashCooldownCounter -= Time.fixedDeltaTime;
+        }
 
         // Jump Buffer 감소
         if (_jumpBufferCounter > 0f)
@@ -328,8 +432,8 @@ public class PlayerPhysics : MonoBehaviour
             _jumpBufferCounter -= Time.fixedDeltaTime;
         }
 
-        // 점프 실행 조건 체크
-        if (_jumpBufferCounter > 0f && _jumpCounter > 0)
+        // 점프 실행 조건 체크 (대시 중이 아닐 때만)
+        if (!_isDashing && _jumpBufferCounter > 0f && _jumpCounter > 0)
         {
             // 첫 번째 점프: 바닥에 있거나 Coyote Time 내
             if (_isGrounded)

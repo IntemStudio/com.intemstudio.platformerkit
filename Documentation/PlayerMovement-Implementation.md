@@ -23,6 +23,13 @@
 - **Input.GetKeyDown(KeyCode.Space)**: 점프 시작 (Jump Buffer에 저장)
 - **Input.GetKeyUp(KeyCode.Space)**: 점프 키 해제 (가변 점프 처리)
 
+**대시:**
+
+- **Input.GetKeyDown(KeyCode.LeftShift)**: 대시 실행
+- **대시 방향 결정**:
+  - 입력이 있는 경우: 좌/우 키 입력 기준 (`_horizontalInput`의 부호)
+  - 입력이 없는 경우: `_modelTransform.localScale.x` 값 기준 (양수=오른쪽, 음수=왼쪽)
+
 ### 이동 속도
 
 - **Move Speed**: 기본 이동 속도 (기본값: 5.0)
@@ -59,6 +66,7 @@
 
 - 수평 이동 입력 처리
 - 점프 입력 처리 (점프 요청(`RequestJump`)/점프 키 해제(`ReleaseJump`))
+- 대시 입력 처리 (대시 요청(`RequestDash`))
 - Model 자식 오브젝트 방향 반전 (스프라이트 좌우 전환)
 
 ```csharp
@@ -107,6 +115,34 @@ public class PlayerController : MonoBehaviour
             _physics.ReleaseJump();
         }
 
+        // 대시 입력 감지
+        if (Input.GetKeyDown(KeyCode.LeftShift))
+        {
+            Vector2 dashDirection = Vector2.zero;
+
+            // 대시 방향 계산
+            if (Mathf.Abs(_horizontalInput) > 0.01f)
+            {
+                // 입력이 있는 경우: 좌/우 키 입력 기준
+                dashDirection = _horizontalInput > 0 ? Vector2.right : Vector2.left;
+            }
+            else
+            {
+                // 입력이 없는 경우: _modelTransform의 스케일 x 값 기준
+                if (_modelTransform != null)
+                {
+                    dashDirection = _modelTransform.localScale.x > 0 ? Vector2.right : Vector2.left;
+                }
+                else
+                {
+                    // Model이 없으면 기본값: 오른쪽
+                    dashDirection = Vector2.right;
+                }
+            }
+
+            _physics.RequestDash(dashDirection);
+        }
+
         // Model 스프라이트 방향 반전
         UpdateModelDirection();
     }
@@ -125,8 +161,12 @@ public class PlayerController : MonoBehaviour
     // 물리 계산 (FixedUpdate)
     private void FixedUpdate()
     {
-        float targetVelocityX = _horizontalInput * _moveSpeed;
-        _physics.ApplyHorizontalVelocity(targetVelocityX);
+        // 대시 중일 때는 일반 이동 입력 무시
+        if (!_physics.IsDashing)
+        {
+            float targetVelocityX = _horizontalInput * _moveSpeed;
+            _physics.ApplyHorizontalVelocity(targetVelocityX);
+        }
     }
 }
 ```
@@ -143,6 +183,7 @@ public class PlayerController : MonoBehaviour
 - Coyote Time 및 Jump Buffer를 활용한 점프 시스템
 - 가변 점프 (점프 키를 빨리 떼면 낮게 점프)
 - 더블 점프 (공중 점프 횟수 기반, 기능 해금 시스템 연동)
+- 대시 시스템 (쿨타임, 지상/공중 대시, 기능 해금 시스템 연동)
 
 ```csharp
 public class PlayerPhysics : MonoBehaviour
@@ -157,6 +198,12 @@ public class PlayerPhysics : MonoBehaviour
     [SerializeField] private float _jumpCutMultiplier = 0.5f;
     [SerializeField] private int _extraJumps = 0; // 공중 점프 횟수 (기본값: 0, 기능 해금 시 증가)
 
+    // 대시 관련 파라미터
+    [SerializeField] private float _dashDistance = 2f; // 대시 거리
+    [SerializeField] private float _dashDuration = 0.2f; // 대시 지속 시간
+    [SerializeField] private float _dashCooldown = 0.5f; // 대시 쿨타임
+    [SerializeField] private bool _airDashEnabled = false; // 공중 대시 활성화 여부
+
     private Rigidbody2D _rb;
     private BoxCollider2D _boxCollider;
     private bool _isGrounded;
@@ -164,6 +211,13 @@ public class PlayerPhysics : MonoBehaviour
     private float _jumpBufferCounter;
     private bool _isJumping;
     private int _jumpCounter; // 현재 사용 가능한 점프 횟수
+
+    // 대시 관련 필드
+    private bool _isDashing;
+    private float _dashCooldownCounter;
+    private float _dashDurationCounter;
+    private Vector2 _dashDirection;
+    private bool _wasGroundedBeforeDash; // 대시 시작 시 지상 상태 저장
 
     public bool IsGrounded => _isGrounded;
     public bool IsJumping => _isJumping;
@@ -173,6 +227,12 @@ public class PlayerPhysics : MonoBehaviour
     
     // 현재 공중 점프 횟수 (읽기 전용)
     public int ExtraJumps => _extraJumps;
+
+    // 대시 관련 프로퍼티
+    public bool IsDashing => _isDashing;
+    public float DashCooldownRemaining => _dashCooldownCounter;
+    public bool CanDash => _dashCooldownCounter <= 0f && (!_isDashing);
+    public bool IsAirDashEnabled => _airDashEnabled;
 
     private void Awake()
     {
@@ -217,9 +277,53 @@ public class PlayerPhysics : MonoBehaviour
         }
     }
 
+    public void RequestDash(Vector2 direction)
+    {
+        // 쿨타임 확인
+        if (!CanDash) return;
+
+        // 지상 대시인 경우 바닥 감지 확인
+        if (!_airDashEnabled && !_isGrounded) return;
+
+        // 대시 실행
+        ExecuteDash(direction);
+    }
+
+    public void SetAirDashEnabled(bool enabled)
+    {
+        _airDashEnabled = enabled;
+    }
+
     private void FixedUpdate()
     {
         CheckGrounded();
+
+        // 대시 처리
+        if (_isDashing)
+        {
+            // 대시 지속 시간 감소
+            _dashDurationCounter -= Time.fixedDeltaTime;
+
+            // 대시 속도 유지 (일반 이동 입력 무시)
+            if (_rb != null)
+            {
+                float dashSpeed = _dashDistance / _dashDuration;
+                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, _rb.linearVelocity.y);
+            }
+
+            // 대시 지속 시간 종료 시 대시 종료
+            if (_dashDurationCounter <= 0f)
+            {
+                _isDashing = false;
+                _dashDirection = Vector2.zero;
+            }
+        }
+
+        // 대시 쿨타임 감소
+        if (_dashCooldownCounter > 0f)
+        {
+            _dashCooldownCounter -= Time.fixedDeltaTime;
+        }
 
         // Jump Buffer 감소
         if (_jumpBufferCounter > 0f)
@@ -227,8 +331,8 @@ public class PlayerPhysics : MonoBehaviour
             _jumpBufferCounter -= Time.fixedDeltaTime;
         }
 
-        // 점프 실행 조건 체크
-        if (_jumpBufferCounter > 0f && _jumpCounter > 0)
+        // 점프 실행 조건 체크 (대시 중이 아닐 때만)
+        if (!_isDashing && _jumpBufferCounter > 0f && _jumpCounter > 0)
         {
             // 첫 번째 점프: 바닥에 있거나 Coyote Time 내
             if (_isGrounded)
@@ -259,12 +363,22 @@ public class PlayerPhysics : MonoBehaviour
 - `Jump Buffer Time`: 점프 버퍼 시간 (기본값: 0.2초)
 - `Jump Cut Multiplier`: 가변 점프 시 속도 감소 배율 (기본값: 0.5)
 - `Extra Jumps`: 공중 점프 횟수 (기본값: 0, 기능 해금 시 1로 설정)
+- `Dash Distance`: 대시 거리 (기본값: 2.0)
+- `Dash Duration`: 대시 지속 시간 (기본값: 0.2초)
+- `Dash Cooldown`: 대시 쿨타임 (기본값: 0.5초)
+- `Air Dash Enabled`: 공중 대시 활성화 여부 (기본값: false, 기능 해금 시 true로 설정)
 
 **공개 API:**
 
 - `SetExtraJumps(int count)`: 공중 점프 횟수 설정 (기능 해금 시스템과 연동)
 - `ExtraJumps { get; }`: 현재 공중 점프 횟수 조회
 - `RemainingJumps { get; }`: 남은 점프 횟수 조회
+- `RequestDash(Vector2 direction)`: 대시 요청 (쿨타임 및 조건 확인 후 실행)
+- `IsDashing { get; }`: 대시 중 상태 조회
+- `DashCooldownRemaining { get; }`: 대시 쿨타임 남은 시간 조회
+- `CanDash { get; }`: 대시 사용 가능 여부 조회
+- `SetAirDashEnabled(bool enabled)`: 공중 대시 활성화/비활성화 (기능 해금 시스템과 연동)
+- `IsAirDashEnabled { get; }`: 공중 대시 활성화 여부 조회
 
 ## 점프 시스템 구현
 
@@ -328,6 +442,119 @@ public class AbilitySystem : MonoBehaviour
   - 더블 점프 가능한 경우: `_jumpCounter = 1` (공중 점프 1회 남음)
 - **공중 점프 실행 시**: `_jumpCounter--`
 - **바닥 착지 시**: `_jumpCounter = 1 + _extraJumps` (리셋)
+
+## 대시 시스템 구현
+
+대시 시스템은 `PlayerPhysics` 클래스에 구현되어 있습니다.
+
+### 구현된 기능
+
+- **지상 대시**: 초반에는 지상에서만 사용 가능 (기본값)
+- **공중 대시**: 기능 해금 시스템과 연동하여 후반에 개방 가능
+- **쿨타임 시스템**: 비교적 긴 쿨타임으로 무지성 회피 억제 (기본값: 0.5초)
+- **거리 기반 대시**: 고정된 거리를 일정 시간에 이동 (기본값: 2.0 거리, 0.2초 지속)
+- **즉각적인 반응**: 입력에 즉시 반응하여 대시 실행
+- **대시 중 일반 이동 무시**: 대시 중에는 일반 이동 입력이 무시됨
+
+### 작동 원리
+
+1. **대시 요청**: `PlayerController`에서 대시 입력 시 `RequestDash(direction)` 호출
+2. **쿨타임 확인**: 대시 쿨타임이 지났는지 확인 (`CanDash` 프로퍼티)
+3. **사용 조건 확인**: 지상 대시인 경우 바닥 감지 상태(`IsGrounded`) 확인
+4. **대시 실행**: 조건을 만족하면 `ExecuteDash(direction)` 호출
+   - 대시 방향 정규화
+   - 대시 속도 계산: `_dashDistance / _dashDuration`
+   - Rigidbody2D 속도 적용 (Y축 속도는 유지)
+   - 대시 상태 플래그 설정 및 쿨타임 타이머 시작
+5. **대시 지속**: `FixedUpdate`에서 대시 지속 시간 동안 속도 유지
+6. **대시 종료**: 대시 지속 시간 종료 시 대시 상태 해제
+
+### 사용 방법
+
+```csharp
+// PlayerController에서 대시 입력 처리
+if (Input.GetKeyDown(KeyCode.LeftShift))
+{
+    Vector2 dashDirection = Vector2.zero;
+
+    // 대시 방향 계산
+    if (Mathf.Abs(_horizontalInput) > 0.01f)
+    {
+        // 입력이 있는 경우: 좌/우 키 입력 기준
+        dashDirection = _horizontalInput > 0 ? Vector2.right : Vector2.left;
+    }
+    else
+    {
+        // 입력이 없는 경우: _modelTransform의 스케일 x 값 기준
+        if (_modelTransform != null)
+        {
+            dashDirection = _modelTransform.localScale.x > 0 ? Vector2.right : Vector2.left;
+        }
+        else
+        {
+            dashDirection = Vector2.right; // 기본값
+        }
+    }
+
+    _physics.RequestDash(dashDirection);
+}
+
+// 대시 중 상태 확인
+if (_physics.IsDashing)
+{
+    // 대시 중 처리
+}
+
+// 대시 쿨타임 확인
+if (_physics.CanDash)
+{
+    // 대시 사용 가능
+}
+```
+
+### 기능 해금 시스템 연동
+
+공중 대시 기능을 해금할 때 `SetAirDashEnabled()` 메서드를 사용합니다:
+
+```csharp
+// 기능 해금 시 공중 대시 활성화
+playerPhysics.SetAirDashEnabled(true);
+
+// 현재 상태 확인
+bool isAirDashEnabled = playerPhysics.IsAirDashEnabled; // 공중 대시 활성화 여부
+bool canDash = playerPhysics.CanDash; // 대시 사용 가능 여부
+float cooldown = playerPhysics.DashCooldownRemaining; // 쿨타임 남은 시간
+
+// 예시: 기능 해금 시스템과 연동
+public class AbilitySystem : MonoBehaviour
+{
+    private PlayerPhysics _playerPhysics;
+    
+    public void UnlockAirDash()
+    {
+        _playerPhysics.SetAirDashEnabled(true);
+        Debug.Log($"공중 대시 해금! 대시 사용 가능: {_playerPhysics.CanDash}");
+    }
+}
+```
+
+### 대시 방향 결정 로직
+
+- **입력이 있는 경우**: 좌/우 키 입력(`_horizontalInput`)의 부호에 따라 방향 결정
+  - 양수: 오른쪽 (`Vector2.right`)
+  - 음수: 왼쪽 (`Vector2.left`)
+- **입력이 없는 경우**: `_modelTransform.localScale.x` 값 기준
+  - 양수: 오른쪽 (`Vector2.right`)
+  - 음수: 왼쪽 (`Vector2.left`)
+- **Model이 없는 경우**: 기본값으로 오른쪽 (`Vector2.right`)
+
+### 대시 시스템 동작 방식
+
+- **대시 속도**: `_dashDistance / _dashDuration`로 계산
+- **대시 중 Y축 속도**: 대시 중에도 Y축 속도(중력, 점프 등)는 유지됨
+- **대시 중 일반 이동**: 대시 중에는 일반 이동 입력이 무시됨
+- **대시 중 점프**: 대시 중에는 점프 입력이 무시됨
+- **쿨타임**: 대시 사용 후 즉시 쿨타임 타이머 시작
 
 ## 디버깅 도구
 
@@ -423,6 +650,20 @@ DebugLogger.Log(
 - [ ] 바닥 착지 시 점프 카운터가 정상적으로 리셋되는가?
 - [ ] `RemainingJumps`와 `ExtraJumps` 프로퍼티가 정상적으로 동작하는가?
 - [ ] 공중에서 더블 점프 후 추가 점프가 불가능한가? (트리플 점프 미구현)
+
+### 대시 시스템
+
+- [ ] 지상에서 대시 입력 시 즉시 대시가 실행되는가?
+- [ ] 대시 쿨타임 동안 대시가 불가능한가?
+- [ ] 대시 중 일반 이동 입력이 무시되는가?
+- [ ] 대시 중 점프 입력이 무시되는가?
+- [ ] 대시 방향이 입력 방향에 따라 정상적으로 결정되는가?
+- [ ] 입력이 없을 때 대시 방향이 Model 스프라이트 방향에 따라 결정되는가?
+- [ ] 공중 대시 비활성화 시 공중에서 대시가 불가능한가?
+- [ ] `SetAirDashEnabled(true)` 호출 후 공중에서 대시가 가능한가?
+- [ ] 대시 중 Y축 속도(중력, 점프 등)가 정상적으로 유지되는가?
+- [ ] 대시 지속 시간 종료 시 대시가 정상적으로 종료되는가?
+- [ ] `IsDashing`, `CanDash`, `DashCooldownRemaining` 프로퍼티가 정상적으로 동작하는가?
 
 ### 시각적 피드백
 
