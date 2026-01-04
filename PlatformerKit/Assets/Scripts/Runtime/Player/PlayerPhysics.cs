@@ -451,8 +451,8 @@ public class PlayerPhysics : MonoBehaviour
         // 대시 방향 저장
         _dashDirection = direction;
 
-        // 대시 속도 적용 (Y축 속도는 유지)
-        _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, _rb.linearVelocity.y);
+        // 대시 속도 적용 (Y축 속도는 0으로 고정)
+        _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, 0f);
 
         // 대시 상태 플래그 설정
         _isDashing = true;
@@ -474,11 +474,12 @@ public class PlayerPhysics : MonoBehaviour
             // 대시 지속 시간 감소
             _dashDurationCounter -= Time.fixedDeltaTime;
 
-            // 대시 속도 유지 (일반 이동 입력 무시)
+            // 대시 속도 유지 (일반 이동 입력 무시, Y축 속도는 0으로 고정)
             if (_rb != null)
             {
                 float dashSpeed = _dashDistance / _dashDuration;
-                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, _rb.linearVelocity.y);
+                // Y축 속도를 0으로 고정
+                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, 0f);
             }
 
             // 대시 지속 시간 종료 시 대시 종료

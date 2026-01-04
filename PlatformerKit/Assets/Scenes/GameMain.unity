@@ -233,7 +233,7 @@ SpriteRenderer:
   m_SortingLayer: 2
   m_SortingOrder: 0
   m_Sprite: {fileID: 21300000, guid: 92ca4b1729e1ddd4d992144aa89f9be5, type: 3}
-  m_Color: {r: 0.26666668, g: 0.26666668, b: 0.30588236, a: 1}
+  m_Color: {r: 0.21568628, g: 0.20784314, b: 0.24313726, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 2
@@ -655,8 +655,8 @@ MonoBehaviour:
   _dashDistance: 2
   _dashDuration: 0.2
   _dashCooldown: 0.5
-  _airDashEnabled: 0
-  _downJumpForce: -20
+  _airDashEnabled: 1
+  _downJumpForce: -10
   _downJumpPlatformIgnoreTime: 0.3
 --- !u!114 &768114353
 MonoBehaviour:
@@ -752,7 +752,7 @@ SpriteRenderer:
   m_SortingLayer: 2
   m_SortingOrder: 0
   m_Sprite: {fileID: 21300000, guid: 92ca4b1729e1ddd4d992144aa89f9be5, type: 3}
-  m_Color: {r: 0.26666668, g: 0.26666668, b: 0.30588236, a: 1}
+  m_Color: {r: 0.21568628, g: 0.20784314, b: 0.24313726, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 2
@@ -915,7 +915,7 @@ SpriteRenderer:
   m_SortingLayer: 2
   m_SortingOrder: 0
   m_Sprite: {fileID: 21300000, guid: 92ca4b1729e1ddd4d992144aa89f9be5, type: 3}
-  m_Color: {r: 0.26666668, g: 0.26666668, b: 0.30588236, a: 1}
+  m_Color: {r: 0.21568628, g: 0.20784314, b: 0.24313726, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 2
@@ -1233,7 +1233,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 112e912851eed2d498ba47bb3143c8fe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _colliderSize: {x: 10, y: 0.5}
+  _colliderSize: {x: 5, y: 0.5}
   _autoSetupCollider: 1
   _playerLayerMask:
     serializedVersion: 2
@@ -1283,11 +1283,11 @@ SpriteRenderer:
   m_SortingLayer: 2
   m_SortingOrder: 0
   m_Sprite: {fileID: 21300000, guid: 92ca4b1729e1ddd4d992144aa89f9be5, type: 3}
-  m_Color: {r: 0.26666668, g: 0.26666668, b: 0.30588236, a: 1}
+  m_Color: {r: 0.827451, g: 0.85490197, b: 0.8509804, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 2
-  m_Size: {x: 0.5, y: 10}
+  m_Size: {x: 5, y: 0.5}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -1332,12 +1332,12 @@ BoxCollider2D:
     border: {x: 0.049999997, y: 0.049999997, z: 0.049999997, w: 0.049999997}
     pivot: {x: 0.5, y: 0.5}
     oldSize: {x: 0.63, y: 0.63}
-    newSize: {x: 0.5, y: 10}
+    newSize: {x: 5, y: 0.5}
     adaptiveTilingThreshold: 0.5
     drawMode: 2
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.5, y: 10}
+  m_Size: {x: 5, y: 0.5}
   m_EdgeRadius: 0
 --- !u!50 &1853961291
 Rigidbody2D:
@@ -1375,7 +1375,7 @@ Transform:
   m_GameObject: {fileID: 1853961287}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 5, y: 3.75, z: 0}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

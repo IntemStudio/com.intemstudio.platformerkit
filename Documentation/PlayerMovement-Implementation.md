@@ -304,11 +304,11 @@ public class PlayerPhysics : MonoBehaviour
             // 대시 지속 시간 감소
             _dashDurationCounter -= Time.fixedDeltaTime;
 
-            // 대시 속도 유지 (일반 이동 입력 무시)
+            // 대시 속도 유지 (일반 이동 입력 무시, Y축 속도는 0으로 고정)
             if (_rb != null)
             {
                 float dashSpeed = _dashDistance / _dashDuration;
-                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, _rb.linearVelocity.y);
+                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, DASH_VELOCITY_Y);
             }
 
             // 대시 지속 시간 종료 시 대시 종료
@@ -455,6 +455,7 @@ public class AbilitySystem : MonoBehaviour
 - **거리 기반 대시**: 고정된 거리를 일정 시간에 이동 (기본값: 2.0 거리, 0.2초 지속)
 - **즉각적인 반응**: 입력에 즉시 반응하여 대시 실행
 - **대시 중 일반 이동 무시**: 대시 중에는 일반 이동 입력이 무시됨
+- **Y축 속도 고정**: 대시 중에는 Y축 속도를 0으로 고정하여 위/아래 이동 없음
 
 ### 작동 원리
 
@@ -464,9 +465,9 @@ public class AbilitySystem : MonoBehaviour
 4. **대시 실행**: 조건을 만족하면 `ExecuteDash(direction)` 호출
    - 대시 방향 정규화
    - 대시 속도 계산: `_dashDistance / _dashDuration`
-   - Rigidbody2D 속도 적용 (Y축 속도는 유지)
+   - Rigidbody2D 속도 적용 (Y축 속도는 0으로 고정)
    - 대시 상태 플래그 설정 및 쿨타임 타이머 시작
-5. **대시 지속**: `FixedUpdate`에서 대시 지속 시간 동안 속도 유지
+5. **대시 지속**: `FixedUpdate`에서 대시 지속 시간 동안 속도 유지 (Y축 속도는 0으로 고정)
 6. **대시 종료**: 대시 지속 시간 종료 시 대시 상태 해제
 
 ### 사용 방법
@@ -551,7 +552,7 @@ public class AbilitySystem : MonoBehaviour
 ### 대시 시스템 동작 방식
 
 - **대시 속도**: `_dashDistance / _dashDuration`로 계산
-- **대시 중 Y축 속도**: 대시 중에도 Y축 속도(중력, 점프 등)는 유지됨
+- **대시 중 Y축 속도**: 대시 중에는 Y축 속도를 0으로 고정하여 위/아래 이동 없음 (`DASH_VELOCITY_Y` 상수 사용)
 - **대시 중 일반 이동**: 대시 중에는 일반 이동 입력이 무시됨
 - **대시 중 점프**: 대시 중에는 점프 입력이 무시됨
 - **쿨타임**: 대시 사용 후 즉시 쿨타임 타이머 시작
@@ -724,7 +725,7 @@ if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
 - [ ] 입력이 없을 때 대시 방향이 Model 스프라이트 방향에 따라 결정되는가?
 - [ ] 공중 대시 비활성화 시 공중에서 대시가 불가능한가?
 - [ ] `SetAirDashEnabled(true)` 호출 후 공중에서 대시가 가능한가?
-- [ ] 대시 중 Y축 속도(중력, 점프 등)가 정상적으로 유지되는가?
+- [ ] 대시 중 Y축 속도가 0으로 고정되어 위/아래 이동이 없는가?
 - [ ] 대시 지속 시간 종료 시 대시가 정상적으로 종료되는가?
 - [ ] `IsDashing`, `CanDash`, `DashCooldownRemaining` 프로퍼티가 정상적으로 동작하는가?
 
