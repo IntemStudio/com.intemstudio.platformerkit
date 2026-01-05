@@ -4,13 +4,29 @@ public class PlayerController : MonoBehaviour
 {
     [SerializeField] private float _moveSpeed = 5f;
 
+    private PlayerInput _input;
+    private PlayerStateMachine _stateMachine;
     private PlayerPhysics _physics;
-    private float _horizontalInput;
-    private bool _isDownInputPressed;
     private Transform _modelTransform;
 
     private void Awake()
     {
+        _input = GetComponent<PlayerInput>();
+
+        // PlayerInput이 없으면 추가
+        if (_input == null)
+        {
+            _input = gameObject.AddComponent<PlayerInput>();
+        }
+
+        _stateMachine = GetComponent<PlayerStateMachine>();
+
+        // PlayerStateMachine이 없으면 추가
+        if (_stateMachine == null)
+        {
+            _stateMachine = gameObject.AddComponent<PlayerStateMachine>();
+        }
+
         _physics = GetComponent<PlayerPhysics>();
 
         // PlayerPhysics가 없으면 추가
@@ -37,64 +53,40 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-
     private void Update()
     {
-        // 입력은 Update에서 읽어서 저장
-        _horizontalInput = Input.GetAxis("Horizontal");
-
-        // 아래 방향 키 입력 상태 추적
-        _isDownInputPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
-
-        // 점프 입력 감지
-        if (Input.GetKeyDown(KeyCode.Space))
+        // 1. 입력 업데이트 (가장 먼저)
+        if (_input != null)
         {
-            // 아래 방향 키가 눌려있으면 아래 점프, 아니면 일반 점프
-            if (_isDownInputPressed)
+            _input.LogicUpdate();
+        }
+
+        // 2. 상태 머신 업데이트 (입력 처리 및 상태 전환)
+        if (_stateMachine != null)
+        {
+            _stateMachine.LogicUpdate();
+        }
+
+        // 3. 점프 입력 감지 (아래 점프만 처리, 일반 점프는 상태 머신에서 처리)
+        if (_input != null && _input.IsJumpPressed && _input.IsDownInputPressed)
+        {
+            // 아래 점프는 상태 머신을 거치지 않고 직접 처리
+            if (_physics != null)
             {
                 _physics.RequestDownJump();
             }
-            else
-            {
-                _physics.RequestJump();
-            }
         }
 
-        // 점프 키를 떼면 가변 점프 처리 (아래 점프가 아닐 때만)
-        if (Input.GetKeyUp(KeyCode.Space) && !_isDownInputPressed)
+        // 4. 점프 키를 떼면 가변 점프 처리 (아래 점프가 아닐 때만)
+        if (_input != null && _input.IsJumpReleased && !_input.IsDownInputPressed)
         {
-            _physics.ReleaseJump();
+            if (_physics != null)
+            {
+                _physics.ReleaseJump();
+            }
         }
 
-        // 대시 입력 감지
-        if (Input.GetKeyDown(KeyCode.LeftShift))
-        {
-            Vector2 dashDirection = Vector2.zero;
-
-            // 대시 방향 계산
-            if (Mathf.Abs(_horizontalInput) > 0.01f)
-            {
-                // 입력이 있는 경우: 좌/우 키 입력 기준
-                dashDirection = _horizontalInput > 0 ? Vector2.right : Vector2.left;
-            }
-            else
-            {
-                // 입력이 없는 경우: _modelTransform의 스케일 x 값 기준
-                if (_modelTransform != null)
-                {
-                    dashDirection = _modelTransform.localScale.x > 0 ? Vector2.right : Vector2.left;
-                }
-                else
-                {
-                    // Model이 없으면 기본값: 오른쪽
-                    dashDirection = Vector2.right;
-                }
-            }
-
-            _physics.RequestDash(dashDirection);
-        }
-
-        // Model 스프라이트 방향 반전
+        // 5. Model 스프라이트 방향 반전
         UpdateModelDirection();
     }
 
@@ -103,25 +95,41 @@ public class PlayerController : MonoBehaviour
         if (_modelTransform == null) return;
 
         // 입력값이 0이 아니면 방향 변경, 0이면 이전 방향 유지
-        if (Mathf.Abs(_horizontalInput) > 0.01f)
+        if (Mathf.Abs(_input.HorizontalInput) > 0.01f)
         {
             Vector3 scale = _modelTransform.localScale;
-            scale.x = _horizontalInput > 0 ? 1f : -1f;
+            scale.x = _input.HorizontalInput > 0 ? 1f : -1f;
             _modelTransform.localScale = scale;
         }
     }
 
     private void FixedUpdate()
     {
-        // 대시 중일 때는 일반 이동 입력 무시
-        if (!_physics.IsDashing)
+        // 1. 물리 시스템 업데이트 (바닥 감지, 대시 처리 등)
+        if (_physics != null)
         {
-            // 즉각적인 반응: 입력에 바로 속도 적용 (가속/감속 없음)
-            float targetVelocityX = _horizontalInput * _moveSpeed;
+            _physics.PhysisUpdate();
+        }
 
-            // PlayerPhysics를 통해 수평 속도 적용 (Y축 속도는 자동으로 유지됨)
-            _physics.ApplyHorizontalVelocity(targetVelocityX);
+        // 2. 상태 머신 FixedUpdate
+        if (_stateMachine != null)
+        {
+            _stateMachine.PhysisUpdate();
+        }
+
+        // 3. 이동 속도 적용 (대시 중일 때는 일반 이동 입력 무시)
+        if (_physics != null && _input != null)
+        {
+            if (!_physics.IsDashing)
+            {
+                // 즉각적인 반응: 입력에 바로 속도 적용 (가속/감속 없음)
+                float targetVelocityX = _input.HorizontalInput * _moveSpeed;
+
+                // PlayerPhysics를 통해 수평 속도 적용 (Y축 속도는 자동으로 유지됨)
+                _physics.ApplyHorizontalVelocity(targetVelocityX);
+            }
         }
     }
+
 }
 

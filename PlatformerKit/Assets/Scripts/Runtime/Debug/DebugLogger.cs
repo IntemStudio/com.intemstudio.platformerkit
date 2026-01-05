@@ -13,7 +13,7 @@ using Newtonsoft.Json;
 public static class DebugLogger
 {
 #if UNITY_EDITOR
-    private static readonly string LogPath = @"c:\Intem Studio\com.intemstudio.platformerkit\.cursor\debug.log";
+    private static readonly string LogPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", ".cursor", "debug.log"));
     private static readonly string DefaultSessionId = "debug-session";
     private static readonly string DefaultRunId = "run1";
 #endif
@@ -44,11 +44,22 @@ public static class DebugLogger
             };
 
             string json = JsonConvert.SerializeObject(logEntry);
+
+            // 디렉토리가 없으면 생성
+            string directory = Path.GetDirectoryName(LogPath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
             File.AppendAllText(LogPath, json + "\n");
+
+            // Unity 콘솔에도 출력 (디버깅용)
+            Debug.Log($"[DebugLogger] {message} at {location}");
         }
-        catch
+        catch (Exception ex)
         {
-            // 로깅 실패는 무시 (디버그 목적이므로)
+            // 로깅 실패는 Unity 콘솔에 출력
+            Debug.LogWarning($"[DebugLogger] Failed to log: {ex.Message}");
         }
 #endif
     }

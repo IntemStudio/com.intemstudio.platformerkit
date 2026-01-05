@@ -50,6 +50,7 @@ public class PlayerPhysics : MonoBehaviour
 
     public bool IsGrounded => _isGrounded;
     public bool IsJumping => _isJumping;
+    public bool IsOnOneWayPlatform { get; private set; }
 
     // 남은 점프 횟수 (읽기 전용)
     public int RemainingJumps => _jumpCounter;
@@ -59,9 +60,13 @@ public class PlayerPhysics : MonoBehaviour
 
     // 대시 관련 프로퍼티
     public bool IsDashing => _isDashing;
+
     public float DashCooldownRemaining => _dashCooldownCounter;
     public bool CanDash => _dashCooldownCounter <= 0f && (!_isDashing);
     public bool IsAirDashEnabled => _airDashEnabled;
+
+    // Rigidbody2D 속도 (읽기 전용)
+    public Vector2 RigidbodyVelocity => _rb != null ? _rb.linearVelocity : Vector2.zero;
 
     private void Awake()
     {
@@ -137,15 +142,6 @@ public class PlayerPhysics : MonoBehaviour
     // 바닥 감지
     public void CheckGrounded()
     {
-        // #region agent log
-        DebugLogger.Log(
-            "PlayerPhysics.cs:89",
-            "CheckGrounded entry",
-            new { boxColliderNull = _boxCollider == null, previousIsGrounded = _isGrounded, coyoteTimeCounter = _coyoteTimeCounter },
-            "A,B,C,D,E"
-        );
-        // #endregion
-
         if (_boxCollider == null) return;
 
         // BoxCollider의 하단 중앙에서 아래로 Raycast
@@ -155,48 +151,10 @@ public class PlayerPhysics : MonoBehaviour
         // boxSize.y * 0.5f는 하단 경계, 추가로 0.05f를 더 내려서 자신의 콜라이더와 겹치지 않도록 함
         Vector2 rayOrigin = new Vector2(boxCenter.x, boxCenter.y - boxSize.y * 0.5f - 0.05f);
 
-        // #region agent log
-        DebugLogger.Log(
-            "PlayerPhysics.cs:106",
-            "Raycast parameters",
-            new
-            {
-                boxSize = new { x = boxSize.x, y = boxSize.y },
-                boxCenter = new { x = boxCenter.x, y = boxCenter.y },
-                rayOrigin = new { x = rayOrigin.x, y = rayOrigin.y },
-                groundCheckDistance = _groundCheckDistance,
-                groundLayerMask = _groundLayerMask.value
-            },
-            "A"
-        );
-        // #endregion
-
         // 자신의 콜라이더를 제외하기 위해 Raycast 사용
         // Physics2D.Raycast는 자신의 콜라이더를 자동으로 제외하지 않으므로,
         // 모든 콜라이더를 체크한 후 자신의 것을 필터링
         RaycastHit2D hit = Physics2D.Raycast(rayOrigin, Vector2.down, _groundCheckDistance, _groundLayerMask);
-
-        // #region agent log - Raycast 전 모든 콜라이더 체크
-        RaycastHit2D[] allHits = Physics2D.RaycastAll(rayOrigin, Vector2.down, _groundCheckDistance);
-        DebugLogger.Log(
-            "PlayerPhysics.cs:125",
-            "RaycastAll results (before filtering)",
-            new
-            {
-                totalHits = allHits.Length,
-                hits = allHits.Select((h, i) => new
-                {
-                    index = i,
-                    colliderName = h.collider != null ? h.collider.name : "null",
-                    colliderGameObject = h.collider != null ? h.collider.gameObject.name : "null",
-                    colliderLayer = h.collider != null ? h.collider.gameObject.layer : -1,
-                    distance = h.distance,
-                    isSelf = h.collider != null && (h.collider.gameObject == gameObject || h.collider == _boxCollider)
-                }).ToArray()
-            },
-            "G"
-        );
-        // #endregion
 
         // 자신의 콜라이더를 감지한 경우 무시 (안전장치)
         bool isSelfCollision = false;
@@ -206,101 +164,71 @@ public class PlayerPhysics : MonoBehaviour
             hit = new RaycastHit2D();
         }
 
-        // #region agent log
-        DebugLogger.Log(
-            "PlayerPhysics.cs:122",
-            "Self-collision check",
-            new
-            {
-                isSelfCollision = isSelfCollision,
-                hitColliderName = hit.collider != null ? hit.collider.name : "null"
-            },
-            "F"
-        );
-        // #endregion
-
-        // #region agent log
-        var hitName = hit.collider != null ? hit.collider.name : "null";
-        var hitGameObject = hit.collider != null ? hit.collider.gameObject.name : "null";
-        var hitPointX = hit.collider != null ? hit.point.x : 0;
-        var hitPointY = hit.collider != null ? hit.point.y : 0;
-        DebugLogger.Log(
-            "PlayerPhysics.cs:140",
-            "Raycast result",
-            new
-            {
-                hitCollider = hit.collider != null,
-                hitColliderName = hitName,
-                hitColliderGameObject = hitGameObject,
-                hitDistance = hit.distance,
-                hitPoint = new { x = hitPointX, y = hitPointY }
-            },
-            "B"
-        );
-        // #endregion
-
         if (hit.collider != null)
         {
-            _isGrounded = true;
-            _coyoteTimeCounter = _coyoteTime;
-            _isJumping = false; // 바닥에 닿으면 점프 상태 초기화
-            // 바닥 착지 시 점프 카운터 리셋 (기본 점프 1 + 공중 점프 횟수)
-            _jumpCounter = 1 + _extraJumps;
+            // 단방향 플랫폼인지 확인
+            OneWayPlatform oneWayPlatform = hit.collider.GetComponent<OneWayPlatform>();
+            bool isOneWayPlatform = oneWayPlatform != null;
+            float velocityY = _rb != null ? _rb.linearVelocity.y : 0f;
 
-            // #region agent log
-            DebugLogger.Log(
-                "PlayerPhysics.cs:150",
-                "Hit detected - setting grounded",
-                new
-                {
-                    isGrounded = _isGrounded,
-                    coyoteTimeCounter = _coyoteTimeCounter,
-                    coyoteTime = _coyoteTime
-                },
-                "C"
-            );
-            // #endregion
+            // 단방향 플랫폼을 통과하는 중(아래로 내려가는 중)이면 실제 착지로 간주하지 않음
+            bool isActuallyGrounded = !isOneWayPlatform || velocityY >= 0f;
+
+            // 단방향 플랫폼 위에 있는지 추적
+            IsOnOneWayPlatform = isOneWayPlatform;
+
+            // 단방향 플랫폼을 통과하는 중(아래로 내려가는 중)이면 실제 착지로 간주하지 않음
+            if (isActuallyGrounded)
+            {
+                _isGrounded = true;
+                _coyoteTimeCounter = _coyoteTime;
+                _isJumping = false; // 바닥에 닿으면 점프 상태 초기화
+                // 점프 카운터 리셋은 실제 착지 시에만 수행 (ResetJumpCounterOnLanding 호출 시)
+            }
+            else
+            {
+                // 단방향 플랫폼을 통과하는 중이면 grounded로 간주하지 않음
+                _isGrounded = false;
+            }
         }
         else
         {
             _coyoteTimeCounter -= Time.fixedDeltaTime;
             _isGrounded = _coyoteTimeCounter > 0f;
-
-            // #region agent log
-            DebugLogger.Log(
-                "PlayerPhysics.cs:163",
-                "No hit - checking coyote time",
-                new
-                {
-                    coyoteTimeCounter = _coyoteTimeCounter,
-                    isGrounded = _isGrounded,
-                    fixedDeltaTime = Time.fixedDeltaTime
-                },
-                "D"
-            );
-            // #endregion
+            IsOnOneWayPlatform = false;
         }
-
-        // #region agent log
-        DebugLogger.Log(
-            "PlayerPhysics.cs:175",
-            "CheckGrounded exit",
-            new
-            {
-                finalIsGrounded = _isGrounded,
-                finalCoyoteTimeCounter = _coyoteTimeCounter
-            },
-            "E"
-        );
-        // #endregion
     }
 
     /// <summary>
     /// 점프 요청을 받습니다. Jump Buffer에 저장되고, 다음 FixedUpdate에서 조건을 체크하여 실행됩니다.
+    /// (상태 머신 사용 시에는 ExecuteJumpIfPossible()를 직접 호출하는 것을 권장)
     /// </summary>
     public void RequestJump()
     {
         _jumpBufferCounter = _jumpBufferTime;
+    }
+
+    /// <summary>
+    /// 점프 버퍼와 조건을 체크하여 점프를 실행합니다. (상태 머신에서 사용)
+    /// </summary>
+    public void ExecuteJumpIfPossible()
+    {
+        if (_jumpBufferCounter > 0f && _jumpCounter > 0)
+        {
+            // 첫 번째 점프: 바닥에 있거나 Coyote Time 내
+            if (_isGrounded)
+            {
+                ExecuteJump();
+                // 첫 점프 후 남은 횟수는 공중 점프 횟수만
+                _jumpCounter = _extraJumps;
+            }
+            // 공중 점프: 공중에 있고 공중 점프 횟수가 0보다 클 때
+            else if (!_isGrounded && _extraJumps > 0 && _jumpCounter > 0)
+            {
+                ExecuteJump();
+                _jumpCounter--; // 점프 카운터 감소
+            }
+        }
     }
 
     /// <summary>
@@ -315,6 +243,14 @@ public class PlayerPhysics : MonoBehaviour
         {
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, _rb.linearVelocity.y * _jumpCutMultiplier);
         }
+    }
+
+    /// <summary>
+    /// 실제 착지 시 점프 카운터 리셋 (단방향 플랫폼 통과 시에는 호출하지 않음)
+    /// </summary>
+    public void ResetJumpCounterOnLanding()
+    {
+        _jumpCounter = 1 + _extraJumps;
     }
 
     /// <summary>
@@ -369,9 +305,9 @@ public class PlayerPhysics : MonoBehaviour
     }
 
     /// <summary>
-    /// 점프 실행 (내부 메서드)
+    /// 점프 실행 (상태 머신에서 직접 호출 가능)
     /// </summary>
-    private void ExecuteJump()
+    public void ExecuteJump()
     {
         if (_rb == null) return;
 
@@ -382,6 +318,21 @@ public class PlayerPhysics : MonoBehaviour
         _coyoteTimeCounter = 0f;
         _jumpBufferCounter = 0f;
         _isJumping = true;
+
+        // 점프 카운터 관리
+        if (_isGrounded)
+        {
+            // 지상 점프: 첫 점프 후 남은 횟수는 공중 점프 횟수만
+            _jumpCounter = _extraJumps;
+        }
+        else
+        {
+            // 공중 점프: 카운터 감소
+            if (_jumpCounter > 0)
+            {
+                _jumpCounter--;
+            }
+        }
     }
 
     /// <summary>
@@ -469,7 +420,7 @@ public class PlayerPhysics : MonoBehaviour
         _dashCooldownCounter = _dashCooldown;
     }
 
-    private void FixedUpdate()
+    public void PhysisUpdate()
     {
         // 매 프레임 바닥 감지
         CheckGrounded();
@@ -518,23 +469,7 @@ public class PlayerPhysics : MonoBehaviour
             _jumpBufferCounter -= Time.fixedDeltaTime;
         }
 
-        // 점프 실행 조건 체크 (대시 중이 아닐 때만)
-        if (!_isDashing && _jumpBufferCounter > 0f && _jumpCounter > 0)
-        {
-            // 첫 번째 점프: 바닥에 있거나 Coyote Time 내
-            if (_isGrounded)
-            {
-                ExecuteJump();
-                // 첫 점프 후 남은 횟수는 공중 점프 횟수만
-                _jumpCounter = _extraJumps;
-            }
-            // 공중 점프: 공중에 있고 공중 점프 횟수가 0보다 클 때
-            else if (!_isGrounded && _extraJumps > 0 && _jumpCounter > 0)
-            {
-                ExecuteJump();
-                _jumpCounter--; // 점프 카운터 감소
-            }
-        }
+        // 점프 실행은 상태 머신에서 처리하므로 여기서는 제거
+        // (기존 호환성을 위해 RequestJump()로 버퍼에 저장된 점프는 ExecuteJumpIfPossible()로 처리 가능)
     }
 }
-

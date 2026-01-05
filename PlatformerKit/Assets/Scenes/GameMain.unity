@@ -517,7 +517,9 @@ GameObject:
   - component: {fileID: 768114349}
   - component: {fileID: 768114351}
   - component: {fileID: 768114348}
+  - component: {fileID: 768114355}
   - component: {fileID: 768114352}
+  - component: {fileID: 768114354}
   - component: {fileID: 768114353}
   m_Layer: 8
   m_Name: Player
@@ -673,6 +675,30 @@ MonoBehaviour:
   _groundedColor: {r: 0.20392157, g: 0.45490196, b: 0.2, a: 1}
   _airborneColor: {r: 0.69803923, g: 0.13333334, b: 0.13333334, a: 1}
   _modelChildName: GroundDebug
+--- !u!114 &768114354
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 768114346}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 60be90a064af4474bb3f99a0bc44afe3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &768114355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 768114346}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b59a211ac3bba9c4f89921a893c729c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &846191484
 GameObject:
   m_ObjectHideFlags: 0
