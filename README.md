@@ -148,7 +148,7 @@ PlatformerKit/
 ```csharp
 // 주요 기능
 - Rigidbody2D 속도 제어
-- 바닥 감지 (Raycast 기반)
+- 충돌 감지 (다중 Raycast 기반: 지면, 천장, 좌우 벽)
 - 점프 처리 (일반/가변/아래 점프)
 - 대시 처리
 - 중력 및 물리 설정 관리

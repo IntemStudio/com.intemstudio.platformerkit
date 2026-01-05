@@ -195,7 +195,7 @@ public class PlayerController : MonoBehaviour
 
 - 리지드바디 2D(`Rigidbody2D`) 및 박스 콜라이더 2D(`BoxCollider2D`) 자동 설정
 - 수평/수직/전체 속도 적용
-- Raycast 기반 바닥 감지
+- 다중 Raycast 기반 충돌 감지 시스템 (지면, 천장, 좌우 벽)
 - Coyote Time 및 Jump Buffer를 활용한 점프 시스템
 - 가변 점프 (점프 키를 빨리 떼면 낮게 점프)
 - 더블 점프 (공중 점프 횟수 기반, 기능 해금 시스템 연동)
@@ -312,7 +312,8 @@ public class PlayerPhysics : MonoBehaviour
 
     private void FixedUpdate()
     {
-        CheckGrounded();
+        // 충돌 감지 (다중 Raycast 기반)
+        CheckCollisions();
 
         // 대시 처리
         if (_isDashing)
@@ -405,7 +406,7 @@ public class PlayerPhysics : MonoBehaviour
 
 ### 구현된 기능
 
-- **바닥 감지**: Raycast 기반으로 바닥 감지
+- **충돌 감지**: 다중 Raycast 기반으로 지면, 천장, 좌우 벽 충돌 감지
 - **Coyote Time**: 바닥 이탈 후 0.2초 동안 점프 허용 (기본값)
 - **Jump Buffer**: 점프 키를 미리 눌러도 착지 시 자동으로 점프 실행 (0.2초 버퍼)
 - **가변 점프**: 점프 키를 빨리 떼면 낮게 점프 (Jump Cut Multiplier: 0.5)
@@ -609,12 +610,12 @@ NDJSON 형식으로 디버그 로그를 파일에 기록하는 유틸리티 클�
 **사용 예시:**
 
 ```csharp
-DebugLogger.Log(
-    "PlayerPhysics.cs:100",
-    "CheckGrounded entry",
-    new { isGrounded = _isGrounded },
-    "hypothesis-id"
-);
+    DebugLogger.Log(
+        "PlayerPhysics.cs:100",
+        "CheckCollisions entry",
+        new { isGrounded = _isGrounded },
+        "hypothesis-id"
+    );
 ```
 
 ### PlayerGroundedDebugger
@@ -727,6 +728,105 @@ private void Update()
 - **One-way platform 통과**: 아래 점프 시 플레이어 아래에 있는 One-way platform과의 충돌을 일시적으로 비활성화
 - **충돌 무시 시간**: `_downJumpPlatformIgnoreTime` 동안 One-way platform 충돌 무시
 
+## 충돌 감지 시스템 구현
+
+충돌 감지 시스템은 `PlayerPhysics` 클래스에 구현되어 있습니다.
+
+### 구현된 기능
+
+- **다중 Raycast 시스템**: 수평/수직 각각 여러 개의 Raycast를 사용하여 정밀한 충돌 감지
+- **지면 감지**: 다중 Raycast를 사용하여 정확한 지면 감지
+- **벽 충돌 감지**: 좌우 벽 충돌을 감지하여 벽 점프 등 향후 기능 지원
+- **천장 감지**: 천장 충돌을 감지하여 머리 박기 방지 등에 활용 가능
+- **One-way Platform 지원**: One-way platform과의 충돌을 올바르게 처리
+- **Unity 물리 엔진과의 일치**: `Physics2D.defaultContactOffset`을 사용하여 Unity 물리 엔진이 계산하는 실제 충돌 영역과 일치
+
+### 작동 원리
+
+1. **Raycast 원점 계산**:
+   - 양끝 레이캐스트: Unity의 `Physics2D.defaultContactOffset` 값을 사용하여 콜라이더 바깥쪽으로 확장
+   - 가운데 레이캐스트: 콜라이더 경계에서 `skinWidth`만큼 안쪽으로 이동한 위치에 설정
+   - 지면 감지 시: 레이캐스트 원점을 `skinWidth`만큼 위로 이동하여 안정성 확보
+
+2. **수직 충돌 감지**: 위아래로 여러 개의 Raycast를 발사하여 지면과 천장 충돌 감지
+3. **수평 충돌 감지**: 이동 방향에 따라 좌우에서 여러 개의 Raycast를 발사하여 벽 충돌 감지
+4. **충돌 정보 저장**: 감지된 충돌 정보를 `PlayerCollisionInfo` 구조체에 저장
+5. **상태 업데이트**: `IsGrounded`, `IsLeftCollision`, `IsRightCollision`, `IsCeiling` 프로퍼티 업데이트
+
+### 설정 가능한 필드
+
+- `Skin Width`: 가운데 Raycast 원점을 콜라이더 경계에서 안쪽으로 이동시킬 거리 (기본값: 0.03f)
+- `Horizontal Ray Count`: 좌우 벽 감지에 사용할 Raycast 개수 (기본값: 4개, 범위: 1개 이상)
+- `Vertical Ray Count`: 지면/천장 감지에 사용할 Raycast 개수 (기본값: 4개, 범위: 1개 이상)
+- `Ground Check Distance`: 지면 감지 거리 (기본값: 0.1f)
+- `Ground Layer Mask`: 바닥 레이어 마스크
+
+**참고**: `Physics2D.defaultContactOffset`은 Unity 프로젝트 설정(Edit → Project Settings → Physics 2D)에서 확인 및 변경 가능합니다. 기본값은 0.01f입니다.
+
+### 공개 API
+
+```csharp
+public class PlayerPhysics : MonoBehaviour
+{
+    // 충돌 감지 상태 프로퍼티
+    public bool IsLeftCollision { get; }      // 왼쪽 벽 충돌
+    public bool IsRightCollision { get; }     // 오른쪽 벽 충돌
+    public bool IsCeiling { get; }            // 천장 충돌
+    public bool IsCollideX { get; }           // 수평 충돌 (좌우 중 하나)
+    public bool IsCollideY { get; }           // 수직 충돌 (위아래 중 하나)
+    
+    // 충돌 감지 메서드 (내부에서 자동 호출)
+    public void CheckCollisions();
+}
+```
+
+### 사용 방법
+
+충돌 감지 시스템은 `PhysisUpdate()` 메서드 내에서 자동으로 호출됩니다:
+
+```csharp
+public void PhysisUpdate()
+{
+    // 충돌 감지 (다중 Raycast 기반)
+    CheckCollisions();
+    
+    // 다른 물리 처리...
+}
+```
+
+충돌 상태는 프로퍼티를 통해 확인할 수 있습니다:
+
+```csharp
+// 지면 감지
+if (_physics.IsGrounded)
+{
+    // 지면에 닿아있음
+}
+
+// 벽 충돌 감지
+if (_physics.IsLeftCollision)
+{
+    // 왼쪽 벽에 닿아있음
+}
+
+if (_physics.IsRightCollision)
+{
+    // 오른쪽 벽에 닿아있음
+}
+
+// 천장 감지
+if (_physics.IsCeiling)
+{
+    // 천장에 닿아있음
+}
+```
+
+### 디버깅
+
+Scene 뷰에서 Raycast를 시각적으로 확인할 수 있습니다:
+- **노란색 레이**: 충돌이 감지되지 않은 Raycast
+- **빨간색 레이**: 충돌이 감지된 Raycast
+
 ## 환경 설정
 
 ### GroundSetup
@@ -766,6 +866,16 @@ private void Update()
 - [ ] Y축 속도(중력, 점프)가 정상적으로 작동하는가?
 - [ ] 벽과의 충돌이 정상적으로 처리되는가?
 - [ ] 이동 속도가 게임 디자인에 적합한가?
+
+### 충돌 감지 시스템
+
+- [ ] 다중 Raycast가 정상적으로 작동하는가?
+- [ ] 지면 감지가 정확한가? (아슬아슬한 접촉도 감지되는가?)
+- [ ] 좌우 벽 충돌 감지가 정상적으로 작동하는가?
+- [ ] 천장 충돌 감지가 정상적으로 작동하는가?
+- [ ] `IsGrounded`, `IsLeftCollision`, `IsRightCollision`, `IsCeiling` 프로퍼티가 정상적으로 동작하는가?
+- [ ] One-way platform과의 충돌이 올바르게 처리되는가?
+- [ ] Scene 뷰에서 Raycast가 시각적으로 확인 가능한가?
 
 ### 점프 시스템
 

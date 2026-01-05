@@ -25,10 +25,10 @@ public class PlayerInput : MonoBehaviour
         // 입력 읽기만 수행
         HorizontalInput = Input.GetAxis("Horizontal");
         VerticalInput = Input.GetAxis("Vertical");
-        IsDownInputPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
-        IsJumpPressed = Input.GetKeyDown(KeyCode.Space);
-        IsJumpReleased = Input.GetKeyUp(KeyCode.Space);
-        IsDashPressed = Input.GetKeyDown(KeyCode.LeftShift);
+        IsDownInputPressed = Input.GetKey(KeyCode.DownArrow);
+        IsJumpPressed = Input.GetKeyDown(KeyCode.Z);
+        IsJumpReleased = Input.GetKeyUp(KeyCode.Z);
+        IsDashPressed = Input.GetKeyDown(KeyCode.C);
     }
 }
 

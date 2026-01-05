@@ -91,10 +91,8 @@
 ## 공통 구현 사항
 
 ### 상태 관리
-- [ ] 이동 상태 머신 구현 또는 확장
+- [ ] 이동 상태 머신 확장
   - 기존 이동 상태에 벽 매달리기, 난간 매달리기, 사다리 모드 추가
-  - 상태 전환 로직 구현
-  - 상태별 물리 설정 관리
 
 ### 물리 설정
 - [ ] 각 상태별 Rigidbody2D 설정
@@ -130,110 +128,12 @@
 - [ ] 사다리 영역 시각화
   - 사다리 Trigger 영역 시각화 (에디터 전용)
 
-## 리팩토링 작업
-
-### 이동 상태 머신 (Movement State Machine)
-- [ ] 이동 상태 열거형 정의
-  - `Idle` - 정지 상태
-  - `Walk` - 걷기 상태
-  - `Dash` - 대시 상태
-  - `Falling` - 낙하 상태
-  - `Jumping` - 점프 상태
-  - `WallHang` - 벽 매달리기 상태
-  - `WallSlide` - 벽 미끄러지기 상태
-  - `LedgeHang` - 난간 매달리기 상태
-  - `Ladder` - 사다리 상태
-- [ ] 상태 머신 클래스 설계
-  - 상태 전환 로직 관리
-  - 상태별 Enter/Update/Exit 메서드 지원
-  - 현재 상태 프로퍼티 (`CurrentState`)
-  - 상태 변경 이벤트 (선택 사항)
-- [ ] 상태 머신 통합
-  - `PlayerController` 또는 `PlayerPhysics`에 상태 머신 통합
-  - 기존 이동 로직을 상태 기반으로 리팩토링
-
-### 상태 머신 갱신 로직
-- [ ] 상태 전환 조건 정의
-  - **기본 이동 상태 전환**
-    - `Idle` → `Walk`: 수평 입력이 있고 바닥에 있을 때
-    - `Walk` → `Idle`: 수평 입력이 없고 바닥에 있을 때
-    - `Idle`/`Walk` → `Jumping`: 점프 입력 시
-    - `Jumping` → `Falling`: 상승 속도가 0 이하일 때
-    - `Falling` → `Idle`/`Walk`: 바닥에 착지했을 때
-    - `Idle`/`Walk` → `Dash`: 대시 입력 시
-    - `Dash` → `Idle`/`Walk`/`Falling`: 대시 완료 후
-  - **벽 관련 상태 전환**
-    - `Falling`/`Jumping` → `WallHang`: 벽에 닿았을 때 (벽 매달리기 조건 만족)
-    - `WallHang` → `WallSlide`: 벽에 닿고 아래 방향 입력 시
-    - `WallHang`/`WallSlide` → `Jumping`: 벽 점프 입력 시
-    - `WallHang`/`WallSlide` → `Falling`: 벽에서 이탈했을 때
-    - `WallHang`/`WallSlide` → `LedgeHang`: 난간 감지 시 (선택 사항)
-  - **난간 관련 상태 전환**
-    - `Falling`/`Jumping` → `LedgeHang`: 난간 감지 시
-    - `LedgeHang` → `Idle`/`Walk`: 난간 오르기 완료 후
-    - `LedgeHang` → `Falling`: 아래 방향 입력 또는 매달리기 해제 시
-  - **사다리 관련 상태 전환**
-    - `Idle`/`Walk`/`Falling`/`Jumping` → `Ladder`: 사다리 영역 진입 시
-    - `Ladder` → `Idle`/`Walk`/`Falling`: 사다리 영역 이탈 시
-    - `Ladder` → `Jumping`: 사다리 중 점프 입력 시
-- [ ] 상태 갱신 타이밍
-  - `Update()` 또는 `FixedUpdate()`에서 상태 갱신
-  - 상태 전환은 물리 업데이트 전에 처리
-  - 상태별 업데이트 로직 분리
-- [ ] 상태별 동작 구현
-  - 각 상태의 Enter/Update/Exit 메서드 구현
-  - 상태별 물리 설정 적용
-  - 상태별 애니메이션 트리거 (향후 확장)
-
-### 상태 머신 구조 설계
-- [ ] 상태 인터페이스 또는 추상 클래스
-  - `IState` 인터페이스 또는 `StateBase` 추상 클래스
-  - `OnEnter()`, `OnUpdate()`, `OnExit()` 메서드 정의
-- [ ] 상태 클래스 구현
-  - **기본 이동 상태**
-    - `IdleState`, `WalkState`, `DashState`, `FallingState`, `JumpingState`
-  - **벽 관련 상태**
-    - `WallHangState`, `WallSlideState`
-  - **난간 관련 상태**
-    - `LedgeHangState`
-  - **사다리 관련 상태**
-    - `LadderState`
-  - 각 상태별 고유 로직 캡슐화
-- [ ] 상태 전환 관리
-  - 상태 전환 조건 검사 로직
-  - 상태 전환 시 이전 상태 Exit → 새 상태 Enter 순서 보장
-  - 상태 전환 중복 방지 로직
-
-### 기존 코드 리팩토링
-- [ ] PlayerController 리팩토링
-  - 상태 머신 기반으로 입력 처리 로직 재구성
-  - 상태별 입력 처리 분리
-- [ ] PlayerPhysics 리팩토링
-  - 상태 머신과 연동하여 물리 적용
-  - 상태별 물리 설정 관리
-  - 상태 전환 시 물리 속도 초기화 또는 유지 로직
-- [ ] 코드 구조 개선
-  - 상태별 책임 분리
-  - 중복 코드 제거
-  - 확장성 향상 (새로운 상태 추가 용이)
-
-### 테스트 및 검증
-- [ ] 상태 전환 테스트
-  - 각 상태 전환이 올바르게 작동하는지 확인
-  - 상태 전환 타이밍 검증
-- [ ] 기존 기능 유지 확인
-  - 리팩토링 후 기존 이동 기능이 정상 작동하는지 확인
-  - 점프, 대시, 이동 등 모든 기능 검증
-- [ ] 성능 검증
-  - 상태 머신 추가로 인한 성능 영향 확인
-  - 불필요한 상태 전환 체크 최적화
-
 ## 참고 사항
 
 - 기존 이동 시스템과의 통합 고려
   - [PlayerMovement-Design.md](./PlayerMovement-Design.md) 참조
   - [PlayerMovement-Implementation.md](./PlayerMovement-Implementation.md) 참조
+  - [PlayerMovement-Architecture.md](./PlayerMovement-Architecture.md) 참조
 - 각 기능은 독립적으로 구현 가능하나, 상태 관리 시스템 통합 필요
 - 기능 해금 시스템과 연동 가능하도록 설계 (벽 점프 횟수, 난간 오르기 스태미나 등)
-- 상태 머신 리팩토링은 새로운 이동 기능 추가 전에 완료하는 것을 권장
 

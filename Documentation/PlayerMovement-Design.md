@@ -54,7 +54,7 @@ graph TD
     C -->|속도 적용| D[PlayerPhysics]
     D -->|Rigidbody2D 조작| E[Rigidbody2D]
     D -->|Collider 관리| F[BoxCollider2D]
-    D -->|바닥 감지| G[CheckGrounded]
+    D -->|충돌 감지| N[CheckCollisions]
     D -->|점프 처리| H[RequestJump/ExecuteJump]
     D -->|대시 처리| I[RequestDash/ExecuteDash]
 
@@ -82,7 +82,7 @@ graph TD
 
 - 리지드바디 2D(`Rigidbody2D`) 및 박스 콜라이더 2D(`BoxCollider2D`) 초기화 및 설정
 - 물리 속도 적용 (수평/수직/전체)
-- 바닥 감지(`CheckGrounded`) (Raycast 기반)
+- 충돌 감지 시스템 (다중 Raycast 기반 정밀 충돌 감지)
 - 점프 시스템 (Coyote Time, Jump Buffer, 가변 점프, 더블 점프)
 - 대시 시스템 (쿨타임, 지상/공중 대시)
 
@@ -103,6 +103,13 @@ public class PlayerPhysics : MonoBehaviour
     // 바닥 감지 상태
     public bool IsGrounded { get; }
 
+    // 충돌 감지 상태
+    public bool IsLeftCollision { get; }
+    public bool IsRightCollision { get; }
+    public bool IsCeiling { get; }
+    public bool IsCollideX { get; }
+    public bool IsCollideY { get; }
+
     // 점프 중 상태
     public bool IsJumping { get; }
 
@@ -121,8 +128,8 @@ public class PlayerPhysics : MonoBehaviour
     // 점프 키 해제(`ReleaseJump`) (가변 점프 처리)
     public void ReleaseJump();
 
-    // 바닥 감지(`CheckGrounded`) (내부에서 자동 호출)
-    public void CheckGrounded();
+    // 충돌 감지(`CheckCollisions`) (내부에서 자동 호출)
+    public void CheckCollisions();
 }
 ```
 
@@ -140,7 +147,7 @@ public class PlayerPhysics : MonoBehaviour
 ### 작동 원리
 
 1. **점프 요청**: `PlayerController`에서 점프 요청(`RequestJump`) 호출 시 Jump Buffer에 저장
-2. **바닥 감지**: `FixedUpdate()`에서 매 프레임 바닥 감지(`CheckGrounded`) 호출
+2. **충돌 감지**: `FixedUpdate()`에서 매 프레임 충돌 감지(`CheckCollisions`) 호출하여 지면 상태 확인
 3. **점프 실행**: Jump Buffer가 활성화되어 있고 점프 가능 상태일 때 점프 실행
    - 첫 번째 점프: 바닥 감지 상태(`IsGrounded`)가 true이거나 Coyote Time 내에 있을 때
    - 더블 점프: 공중에 있고 점프 카운터가 1 이하일 때
@@ -275,6 +282,87 @@ public class PlayerPhysics : MonoBehaviour
 - **기능 해금 후**: 공중 대시 활성화
 - **런타임 변경**: `SetAirDashEnabled(bool enabled)` 메서드를 통해 공중 대시 동적 활성화/비활성화 가능
 
+## 충돌 감지 시스템 설계
+
+충돌 감지 시스템은 다중 Raycast를 사용하여 정밀한 충돌 정보를 제공합니다.
+
+### 설계 의도
+
+- **정밀한 충돌 감지**: 다중 Raycast를 사용하여 엣지 케이스와 좁은 플랫폼도 정확히 감지
+- **4방향 충돌 감지**: 지면, 천장, 좌우 벽 충돌을 모두 감지하여 다양한 게임플레이 기능 지원
+- **확장성**: 벽 점프, 벽 슬라이딩 등 향후 기능 구현을 위한 기반 제공
+- **기존 시스템과 통합**: 기존 바닥 감지 시스템과 호환되며 점진적으로 개선 가능
+
+### 설계 원칙
+
+- **다중 Raycast**: 수평/수직 각각 여러 개의 Raycast를 사용하여 정밀도 향상
+- **정보 제공 중심**: Unity 물리 시스템과 함께 작동하며 충돌 정보만 제공
+- **성능 최적화**: Raycast 개수를 Inspector에서 조정 가능하여 성능과 정밀도 균형 유지
+- **기존 호환성**: 기존 `IsGrounded` 프로퍼티는 유지하여 기존 코드와 호환
+
+### 작동 원리
+
+1. **Raycast 원점 계산**: 
+   - 양끝 레이캐스트: Unity의 `Physics2D.defaultContactOffset`을 고려하여 콜라이더 바깥쪽으로 확장
+   - 가운데 레이캐스트: 콜라이더 경계에서 `skinWidth`만큼 안쪽으로 이동한 위치에 설정
+   - 지면 감지 시: 레이캐스트 원점을 `skinWidth`만큼 위로 이동하여 안정성 확보
+2. **수평 충돌 감지**: 이동 방향에 따라 좌우에서 여러 개의 Raycast를 발사하여 벽 충돌 감지
+3. **수직 충돌 감지**: 위아래로 여러 개의 Raycast를 발사하여 지면과 천장 충돌 감지
+4. **충돌 정보 저장**: 감지된 충돌 정보를 `PlayerCollisionInfo` 구조체에 저장
+5. **통합 처리**: 다중 Raycast 시스템이 `IsGrounded` 상태를 업데이트
+
+### 구현된 기능
+
+- **다중 Raycast 시스템**: 수평/수직 각각 2~8개의 Raycast 사용 (기본값: 4개)
+- **지면 감지**: 기존 단일 Raycast 방식보다 정확한 지면 감지
+- **벽 충돌 감지**: 좌우 벽 충돌을 감지하여 벽 점프 등 향후 기능 지원
+- **천장 감지**: 천장 충돌을 감지하여 머리 박기 방지 등에 활용 가능
+- **One-way Platform 지원**: One-way platform과의 충돌을 올바르게 처리
+- **디버그 시각화**: Scene 뷰에서 Raycast를 시각적으로 확인 가능
+
+### Raycast 설정
+
+- **Skin Width**: 가운데 Raycast 원점을 콜라이더 경계에서 안쪽으로 이동시킬 거리 (기본값: 0.03f)
+- **Default Contact Offset**: Unity 물리 엔진의 `Physics2D.defaultContactOffset` 값을 사용하여 양끝 레이캐스트 위치 조정 (프로젝트 설정에서 확인 가능, 기본값: 0.01f)
+- **수평 Raycast 개수**: 좌우 벽 감지에 사용할 Raycast 개수 (기본값: 4개, 범위: 1개 이상)
+- **수직 Raycast 개수**: 지면/천장 감지에 사용할 Raycast 개수 (기본값: 4개, 범위: 1개 이상)
+- **Raycast 간격**: 콜라이더 크기와 `skinWidth`를 고려하여 자동으로 계산
+
+### PlayerPhysics API 확장
+
+충돌 감지 시스템을 위해 `PlayerPhysics` 클래스에 다음 API가 추가됩니다:
+
+```csharp
+public class PlayerPhysics : MonoBehaviour
+{
+    // 충돌 감지 상태 프로퍼티
+    public bool IsLeftCollision { get; }      // 왼쪽 벽 충돌
+    public bool IsRightCollision { get; }     // 오른쪽 벽 충돌
+    public bool IsCeiling { get; }            // 천장 충돌
+    public bool IsCollideX { get; }           // 수평 충돌 (좌우 중 하나)
+    public bool IsCollideY { get; }           // 수직 충돌 (위아래 중 하나)
+    
+    // 충돌 감지 메서드 (내부에서 자동 호출)
+    public void CheckCollisions();
+}
+```
+
+### 기존 시스템과의 통합
+
+- **통합된 지면 감지**: 다중 Raycast 시스템이 `IsGrounded` 프로퍼티를 직접 업데이트
+- **One-way Platform 처리**: One-way platform과의 충돌을 올바르게 처리
+- **Coyote Time 지원**: Coyote Time 시스템과 함께 작동
+- **Unity 물리 엔진과의 일치**: `Physics2D.defaultContactOffset`을 사용하여 Unity 물리 엔진이 계산하는 실제 충돌 영역과 일치
+
+### 향후 확장 가능한 기능
+
+충돌 감지 시스템을 기반으로 다음 기능들을 구현할 수 있습니다:
+
+- **벽 점프**: `IsLeftCollision` 또는 `IsRightCollision`을 활용하여 벽에 닿았을 때 점프 가능
+- **벽 슬라이딩**: 벽에 닿았을 때 미끄러지는 동작
+- **천장 밀기**: 천장에 닿았을 때 특수 동작
+- **경사면 처리**: 향후 경사면 오르기/내려가기 기능 구현 가능
+
 ## One-way Platform 시스템 설계
 
 One-way Platform은 플레이어가 위에서 아래로 내려올 때만 통과할 수 있고, 아래에서 위로 올라갈 때는 막히는 플랫폼입니다.
@@ -343,7 +431,8 @@ public class PlayerPhysics : MonoBehaviour
 ### 벽 점프
 
 - 벽에 닿았을 때 점프 가능
-- 벽 감지 시스템 추가 필요
+- 충돌 감지 시스템의 `IsLeftCollision`/`IsRightCollision` 활용
+- 벽 점프 시 수직 속도 적용 및 벽에서 밀려나는 힘 추가
 
 ### 공중 대시
 
