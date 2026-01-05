@@ -1,18 +1,21 @@
 using UnityEngine;
 
-public interface IPlayerState
+namespace IntemStudio
 {
-    void OnEnter();
+    public interface IPlayerState
+    {
+        void OnEnter();
 
-    void OnUpdate();
+        void OnUpdate();
 
-    void OnFixedUpdate();
+        void OnFixedUpdate();
 
-    void OnExit();
+        void OnExit();
 
-    void OnJumpRequested();
+        void OnJumpRequested();
 
-    void OnDashRequested(Vector2 direction);
+        void OnDashRequested(Vector2 direction);
 
-    bool CanTransitionTo(PlayerState targetState);
+        bool CanTransitionTo(PlayerState targetState);
+    }
 }

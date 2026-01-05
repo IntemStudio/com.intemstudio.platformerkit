@@ -191,6 +191,14 @@ public class PlayerController : MonoBehaviour
 
 물리 설정 및 속도 적용을 담당합니다.
 
+**구조**: Partial 클래스로 기능별로 분리
+
+- `PlayerPhysics.cs`: 메인 클래스, 기본 설정 및 공개 API
+- `PlayerPhysics.Collision.cs`: 충돌 감지 시스템
+- `PlayerPhysics.Jump.cs`: 점프 시스템
+- `PlayerPhysics.Dash.cs`: 대시 시스템
+- `PlayerPhysics.DownJump.cs`: 아래 점프 시스템
+
 **주요 기능:**
 
 - 리지드바디 2D(`Rigidbody2D`) 및 박스 콜라이더 2D(`BoxCollider2D`) 자동 설정
@@ -201,54 +209,32 @@ public class PlayerController : MonoBehaviour
 - 더블 점프 (공중 점프 횟수 기반, 기능 해금 시스템 연동)
 - 대시 시스템 (쿨타임, 지상/공중 대시, 기능 해금 시스템 연동)
 
+**메인 클래스 구조:**
+
 ```csharp
-public class PlayerPhysics : MonoBehaviour
+public partial class PlayerPhysics : MonoBehaviour
 {
     [SerializeField] private Vector2 _colliderSize = new Vector2(0.5f, 1f);
     [SerializeField] private bool _autoSetupCollider = true;
-    [SerializeField] private float _groundCheckDistance = 0.1f;
-    [SerializeField] private LayerMask _groundLayerMask = 1;
-    [SerializeField] private float _coyoteTime = 0.2f;
-    [SerializeField] private float _jumpForce = 15f;
-    [SerializeField] private float _jumpBufferTime = 0.2f;
-    [SerializeField] private float _jumpCutMultiplier = 0.5f;
-    [SerializeField] private int _extraJumps = 0; // 공중 점프 횟수 (기본값: 0, 기능 해금 시 증가)
 
-    // 대시 관련 파라미터
-    [SerializeField] private float _dashDistance = 2f; // 대시 거리
-    [SerializeField] private float _dashDuration = 0.2f; // 대시 지속 시간
-    [SerializeField] private float _dashCooldown = 0.5f; // 대시 쿨타임
-    [SerializeField] private bool _airDashEnabled = false; // 공중 대시 활성화 여부
+    protected Rigidbody2D _rb;
+    protected BoxCollider2D _boxCollider;
 
-    private Rigidbody2D _rb;
-    private BoxCollider2D _boxCollider;
-    private bool _isGrounded;
-    private float _coyoteTimeCounter;
-    private float _jumpBufferCounter;
-    private bool _isJumping;
-    private int _jumpCounter; // 현재 사용 가능한 점프 횟수
-
-    // 대시 관련 필드
-    private bool _isDashing;
-    private float _dashCooldownCounter;
-    private float _dashDurationCounter;
-    private Vector2 _dashDirection;
-    private bool _wasGroundedBeforeDash; // 대시 시작 시 지상 상태 저장
-
-    public bool IsGrounded => _isGrounded;
-    public bool IsJumping => _isJumping;
-    
-    // 남은 점프 횟수 (읽기 전용)
-    public int RemainingJumps => _jumpCounter;
-    
-    // 현재 공중 점프 횟수 (읽기 전용)
-    public int ExtraJumps => _extraJumps;
-
-    // 대시 관련 프로퍼티
-    public bool IsDashing => _isDashing;
-    public float DashCooldownRemaining => _dashCooldownCounter;
-    public bool CanDash => _dashCooldownCounter <= 0f && (!_isDashing);
-    public bool IsAirDashEnabled => _airDashEnabled;
+    public bool IsGrounded { get; protected set; }
+    public bool IsJumping { get; protected set; }
+    public bool IsOnOneWayPlatform { get; protected set; }
+    public int RemainingJumps { get; protected set; }
+    public int ExtraJumps { get; protected set; }
+    public bool IsDashing { get; protected set; }
+    public float DashCooldownRemaining { get; protected set; }
+    public bool CanDash => DashCooldownRemaining <= 0f && !IsDashing;
+    public bool IsAirDashEnabled { get; protected set; }
+    public Vector2 RigidbodyVelocity => _rb != null ? _rb.linearVelocity : Vector2.zero;
+    public bool IsLeftCollision { get; protected set; }
+    public bool IsRightCollision { get; protected set; }
+    public bool IsCeiling { get; protected set; }
+    public bool IsCollideX { get; protected set; }
+    public bool IsCollideY { get; protected set; }
 
     private void Awake()
     {
@@ -257,117 +243,58 @@ public class PlayerPhysics : MonoBehaviour
         {
             SetupCollider();
         }
-        
-        // 점프 카운터 초기화 (기본 점프 1 + 공중 점프 횟수)
-        _jumpCounter = 1 + _extraJumps;
+        InitializeSystems();
+    }
+
+    private void InitializeSystems()
+    {
+        InitializeCollisionSystem();
+        InitializeJumpSystem();
+        InitializeDashSystem();
+        InitializeDownJumpSystem();
     }
 
     public void ApplyHorizontalVelocity(float velocityX)
     {
+        if (_rb == null) return;
         _rb.linearVelocity = new Vector2(velocityX, _rb.linearVelocity.y);
     }
 
-    public void RequestJump()
+    public void ApplyVerticalVelocity(float velocityY)
     {
-        _jumpBufferCounter = _jumpBufferTime;
+        if (_rb == null) return;
+        _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, velocityY);
     }
 
-    public void ReleaseJump()
+    public void ApplyVelocity(Vector2 velocity)
     {
-        // 위로 올라가는 중일 때만 속도 감소
-        if (_rb.linearVelocity.y > 0f)
-        {
-            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, _rb.linearVelocity.y * _jumpCutMultiplier);
-        }
+        if (_rb == null) return;
+        _rb.linearVelocity = velocity;
     }
 
-    // 공중 점프 횟수 설정 (기능 해금 시스템과 연동)
+    public void PhysisUpdate()
+    {
+        UpdateCollisionDetection();
+        UpdateDash();
+        UpdateDownJump();
+        UpdateJump();
+    }
+
     public void SetExtraJumps(int count)
     {
-        _extraJumps = Mathf.Max(0, count); // 음수 방지
-        
-        // 바닥에 있을 때만 카운터 리셋 (공중에서는 유지)
-        if (_isGrounded)
-        {
-            _jumpCounter = 1 + _extraJumps;
-        }
-    }
-
-    public void RequestDash(Vector2 direction)
-    {
-        // 쿨타임 확인
-        if (!CanDash) return;
-
-        // 지상 대시인 경우 바닥 감지 확인
-        if (!_airDashEnabled && !_isGrounded) return;
-
-        // 대시 실행
-        ExecuteDash(direction);
+        SetExtraJumpsInternal(count);
     }
 
     public void SetAirDashEnabled(bool enabled)
     {
-        _airDashEnabled = enabled;
-    }
-
-    private void FixedUpdate()
-    {
-        // 충돌 감지 (다중 Raycast 기반)
-        CheckCollisions();
-
-        // 대시 처리
-        if (_isDashing)
-        {
-            // 대시 지속 시간 감소
-            _dashDurationCounter -= Time.fixedDeltaTime;
-
-            // 대시 속도 유지 (일반 이동 입력 무시, Y축 속도는 0으로 고정)
-            if (_rb != null)
-            {
-                float dashSpeed = _dashDistance / _dashDuration;
-                _rb.linearVelocity = new Vector2(_dashDirection.x * dashSpeed, DASH_VELOCITY_Y);
-            }
-
-            // 대시 지속 시간 종료 시 대시 종료
-            if (_dashDurationCounter <= 0f)
-            {
-                _isDashing = false;
-                _dashDirection = Vector2.zero;
-            }
-        }
-
-        // 대시 쿨타임 감소
-        if (_dashCooldownCounter > 0f)
-        {
-            _dashCooldownCounter -= Time.fixedDeltaTime;
-        }
-
-        // Jump Buffer 감소
-        if (_jumpBufferCounter > 0f)
-        {
-            _jumpBufferCounter -= Time.fixedDeltaTime;
-        }
-
-        // 점프 실행 조건 체크 (대시 중이 아닐 때만)
-        if (!_isDashing && _jumpBufferCounter > 0f && _jumpCounter > 0)
-        {
-            // 첫 번째 점프: 바닥에 있거나 Coyote Time 내
-            if (_isGrounded)
-            {
-                ExecuteJump();
-                // 첫 점프 후 남은 횟수는 공중 점프 횟수만
-                _jumpCounter = _extraJumps;
-            }
-            // 공중 점프: 공중에 있고 공중 점프 횟수가 0보다 클 때
-            else if (!_isGrounded && _extraJumps > 0 && _jumpCounter > 0)
-            {
-                ExecuteJump();
-                _jumpCounter--; // 점프 카운터 감소
-            }
-        }
+        SetAirDashEnabledInternal(enabled);
     }
 }
 ```
+
+**Partial 클래스 구조:**
+
+각 기능별로 별도의 파일로 분리되어 있으며, 같은 클래스 내에서 `protected` 필드와 메서드를 공유합니다.
 
 **설정 가능한 필드:**
 

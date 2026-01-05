@@ -694,6 +694,14 @@ public class FallingState : IPlayerState
 
 **책임**: 순수 물리 처리만 담당
 
+**구조**: Partial 클래스로 기능별로 분리
+
+- `PlayerPhysics.cs`: 메인 클래스, 기본 설정 및 공개 API
+- `PlayerPhysics.Collision.cs`: 충돌 감지 시스템
+- `PlayerPhysics.Jump.cs`: 점프 시스템
+- `PlayerPhysics.Dash.cs`: 대시 시스템
+- `PlayerPhysics.DownJump.cs`: 아래 점프 시스템
+
 **주요 기능:**
 
 - Rigidbody2D 및 Collider 설정
@@ -708,26 +716,27 @@ public class FallingState : IPlayerState
 - 상태 관리 로직 제거 (상태 머신으로 이동)
 - 입력 처리 관련 코드 제거 (PlayerInput으로 이동)
 - 물리 상태만 관리 (IsGrounded, IsDashing 등)
+- Partial 클래스로 기능별 분리하여 유지보수성 향상
 
 **공개 API:**
 
 ```csharp
-public class PlayerPhysics : MonoBehaviour
+public partial class PlayerPhysics : MonoBehaviour
 {
     // 물리 상태 (읽기 전용)
-    public bool IsGrounded { get; private set; }
-    public bool IsDashing { get; private set; }
-    public bool IsJumping { get; private set; }
-    public bool IsOnOneWayPlatform { get; private set; } // 단방향 플랫폼 위에 있는지
-
+    public bool IsGrounded { get; protected set; }
+    public bool IsDashing { get; protected set; }
+    public bool IsJumping { get; protected set; }
+    public bool IsOnOneWayPlatform { get; protected set; }
+    
     // 점프 시스템
-    public int RemainingJumps { get; } // 남은 점프 횟수
-    public int ExtraJumps { get; } // 공중 점프 횟수
+    public int RemainingJumps { get; protected set; }
+    public int ExtraJumps { get; protected set; }
 
     // 대시 시스템
-    public bool CanDash { get; } // 대시 가능 여부
-    public bool IsAirDashEnabled { get; } // 공중 대시 활성화 여부
-    public float DashCooldownRemaining { get; } // 대시 쿨타임 남은 시간
+    public bool CanDash { get; }
+    public bool IsAirDashEnabled { get; protected set; }
+    public float DashCooldownRemaining { get; protected set; }
 
     // Rigidbody2D 속도 (읽기 전용)
     public Vector2 RigidbodyVelocity { get; }
@@ -738,13 +747,17 @@ public class PlayerPhysics : MonoBehaviour
     public void ApplyVelocity(Vector2 velocity);
 
     // 점프 시스템
+    public void RequestJump(); // 점프 요청 (Jump Buffer에 저장)
+    public void ExecuteJumpIfPossible(); // 점프 실행 조건 체크 및 실행
     public void ExecuteJump(); // 점프 실행 (상태 머신에서 직접 호출)
     public void ReleaseJump(); // 점프 키 해제 (가변 점프)
-    public void RequestDownJump(); // 아래 점프 요청
     public void ResetJumpCounterOnLanding(); // 착지 시 점프 카운터 리셋
 
     // 대시 시스템
     public void RequestDash(Vector2 direction); // 대시 요청
+
+    // 아래 점프 시스템
+    public void RequestDownJump(); // 아래 점프 요청
 
     // 물리 업데이트
     public void PhysisUpdate(); // FixedUpdate에서 호출
@@ -760,10 +773,13 @@ public class PlayerPhysics : MonoBehaviour
 
 **주요 특징:**
 
-- `PhysisUpdate()`: `PlayerController.FixedUpdate()`에서 호출, 충돌 감지 및 대시 처리
+- `PhysisUpdate()`: `PlayerController.FixedUpdate()`에서 호출, 충돌 감지 및 각 시스템 업데이트
 - 단방향 플랫폼 처리: `CheckCollisions()`에서 단방향 플랫폼 통과 중(`velocityY < 0`)일 때는 `isGrounded = false`로 설정
+- `RequestJump()`: Jump Buffer에 점프 요청 저장
+- `ExecuteJumpIfPossible()`: Jump Buffer와 점프 가능 조건을 체크하여 점프 실행
 - `ExecuteJump()`: 상태 머신에서 직접 호출하여 점프 실행
 - `ResetJumpCounterOnLanding()`: 실제 착지 시에만 호출하여 점프 카운터 리셋
+- Partial 클래스 구조로 각 기능을 독립적으로 관리 가능
 
 ## 상태 전환 로직
 

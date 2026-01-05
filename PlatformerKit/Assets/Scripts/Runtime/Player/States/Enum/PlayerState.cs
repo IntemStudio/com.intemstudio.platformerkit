@@ -1,10 +1,12 @@
-public enum PlayerState
+namespace IntemStudio
 {
-    None,
-    Idle,
-    Walk,
-    Jumping,
-    Falling,
-    Dash
+    public enum PlayerState
+    {
+        None,
+        Idle,
+        Walk,
+        Jumping,
+        Falling,
+        Dash
+    }
 }
-
